@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from funcs import drone_power_stacked_rotors
+from funcs import drone_power
 
 m_ingenuity = 1.8
 m_fus_ingenuity = 0.3
@@ -46,7 +46,7 @@ def solve_two_rotor_design(R, N_blade, c_mean=0.1417, rpm=2800,
         m_total = m_no_fuselage + m_fuselage
 
         # total power required
-        P_new = drone_power_stacked_rotors(m_total, R, c_mean, rpm, N_blade, N_rotor)
+        P_new = drone_power(m_total, R, c_mean, rpm, N_blade, N_rotor)
 
         if abs(P_new - P_drone) < tol:
             P_drone = P_new
