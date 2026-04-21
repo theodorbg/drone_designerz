@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Mars parameters
-g = 3.712 # gravitational constant [m/s^2]
+g_mars = 3.712 # gravitational constant [m/s^2]
 # air density (assumed 1 meter above surface) [kg/m^3]
 rho = (0.699 * np.exp(-0.00009*1))/(0.1921 * ((-31 - 0.000998 * 1) + 273.1)) 
 
@@ -26,7 +26,7 @@ c_mean = A_blade / (Nb * R)
 print(f"Mean chord: {c_mean:.4f} m")
 
 # Total thrust in hover [m*kg/s^2]
-T_total = m * g 
+T_total = m * g_mars
 
 # Total ideal power (slide 8 of lecture notes)
 P_total_ideal = T_total**(3/2) / np.sqrt(2 * rho * A)
@@ -38,7 +38,7 @@ P0 = 2 * (1/8) * rho * c_mean * Nb * C_d0 * Omega**3 * R**4
 P_rotors_total = gamma * P_total_ideal + P0
 
 print(f"Mars Density: {rho:.5f} kg/m^3")
-print(f"Mars Gravitational Constant: {g:.3f} m/s^2")
+print(f"Mars Gravitational Constant: {g_mars:.3f} m/s^2")
 print(f"Mean chord: {c_mean:.4f} m")
 
 print(f"Total ideal power: {P_total_ideal:.2f} W")

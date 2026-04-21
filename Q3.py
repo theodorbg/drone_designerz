@@ -105,7 +105,8 @@ plt.ylabel('Flight Time (minutes)')
 plt.title('Flight Time vs Number of Extra Batteries')
 plt.legend()
 plt.grid()
-plt.show()
+plt.savefig('flight_time_vs_batteries.png')
+plt.close()
 
 # the flight time of each configuration can be read from plot to be with max amount of battereis
 # extract the last flight time for each configuration

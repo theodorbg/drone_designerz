@@ -15,14 +15,12 @@ m_payload = 2.0
 m_battery_pack = 0.5
 m_components = 1.0
 
-def solve_two_rotor_design(R, N_blade, c_mean=0.1417, rpm=2800,
+def solve_two_rotor_design(R, N_rotor, N_blade, c_mean=0.1417, rpm=2800,
                            tol=1e-4, max_iter=1000, alpha=0.5):
     """
     Solve self-consistently for one 2-rotor design.
     Returns total power, total mass, motor mass, etc.
     """
-
-    N_rotor = 4
 
     # mass of one propeller
     m_propeller_one = 0.07/4 * N_blade * R / R_ingenuity
@@ -74,40 +72,79 @@ def solve_two_rotor_design(R, N_blade, c_mean=0.1417, rpm=2800,
         "flight_time_min": flight_time_minutes,
     }
 
-R_values = np.linspace(0.35, 1.4, 100)
-blade_values = [2, 3, 4, 5]
+def find_optimal_design(N_rotor):
+    R_values = np.linspace(0.35, 1.4, 100)
+    blade_values = [2, 3, 4, 5]
 
-results = []
+    results = []
 
-for R in R_values:
-    for N_blade in blade_values:
-        out = solve_two_rotor_design(R=R, N_blade=N_blade)
-        results.append(out)
+    for R in R_values:
+        for N_blade in blade_values:
+            out = solve_two_rotor_design(R=R, N_rotor=N_rotor, N_blade=N_blade)
+            results.append(out)
 
-df_two_rotor = pd.DataFrame(results)
+    df_two_rotor = pd.DataFrame(results)
 
-df_plot = df_two_rotor[df_two_rotor["N_blade"] >= 1].copy()
+    df_plot = df_two_rotor[df_two_rotor["N_blade"] >= 1].copy()
 
-heatmap_data = df_plot.pivot(index="N_blade", columns="R", values="flight_time_min")
-heatmap_data = heatmap_data.sort_index().sort_index(axis=1)
+    heatmap_data = df_plot.pivot(index="N_blade", columns="R", values="flight_time_min")
+    heatmap_data = heatmap_data.sort_index().sort_index(axis=1)
 
-best_row = df_plot.loc[df_plot["flight_time_min"].idxmax()]
+    best_row = df_plot.loc[df_plot["flight_time_min"].idxmax()]
 
-plt.figure(figsize=(10, 5), dpi=150)
-im = plt.imshow(
-    heatmap_data.values,
-    aspect="auto",
-    origin="lower",
-    extent=[
-        heatmap_data.columns.min(), heatmap_data.columns.max(),
-        heatmap_data.index.min(), heatmap_data.index.max()
-    ]
-)
+    plt.figure(figsize=(10, 5), dpi=150)
+    im = plt.imshow(
+        heatmap_data.values,
+        aspect="auto",
+        origin="lower",
+        extent=[
+            heatmap_data.columns.min(), heatmap_data.columns.max(),
+            heatmap_data.index.min(), heatmap_data.index.max()
+        ]
+    )
 
-plt.scatter(best_row["R"], best_row["N_blade"], marker="x", s=100)
-plt.colorbar(im, label="Flight time [min]")
-plt.xlabel("Rotor radius R [m]")
-plt.ylabel("Number of blades")
-plt.title("Two-rotor design: flight time as function of radius and blade count")
-plt.yticks(sorted(df_plot["N_blade"].unique()))
-plt.show()
+    plt.scatter(best_row["R"], best_row["N_blade"], marker="x", s=100)
+    plt.colorbar(im, label="Flight time [min]")
+    plt.xlabel("Rotor radius R [m]")
+    plt.ylabel("Number of blades")
+    plt.title("Two-rotor design: flight time as function of radius and blade count")
+    plt.yticks(sorted(df_plot["N_blade"].unique()))
+    plt.savefig(f"heatmap_N_rotor_{N_rotor}.png")
+    plt.close()
+
+    # RESULTS
+    # EXTRACT OPTIMAL ROTOR DESIGN
+    R_optimal = best_row['R']
+    m_optimal = best_row['m_total']
+    P_optimal = best_row['P_total']
+    N_blade_optimal = best_row['N_blade']
+    flight_time_optimal = best_row['flight_time_min']
+    
+    print("Optimal two-rotor design:")
+    print(f"  Rotor radius R: {best_row['R']:.3f} m")
+    print(f"  Number of blades: {best_row['N_blade']}")
+    print(f"  Flight time: {best_row['flight_time_min']:.1f} min")
+    print(f"  Total mass: {best_row['m_total']:.2f} kg")
+    print(f"  Total power: {best_row['P_total']:.2f} W")
+    return R_optimal, m_optimal, P_optimal, N_blade_optimal, flight_time_optimal
+
+class Drone_Design:
+    
+    def __init__(self, N_rotor):
+        self.N_rotor = N_rotor
+        self.N_blades = 0
+        self.R = 0
+        self.m = 0
+        self.N_blades = 0
+        self.flight_time = 0
+        self.P_total = 0
+        
+        
+        
+    
+    
+R_2_rotor_optimal = Drone_Design(N_rotor=2)
+R_2_rotor_optimal.R, R_2_rotor_optimal.m, R_2_rotor_optimal.P_total, R_2_rotor_optimal.N_blades, R_2_rotor_optimal.flight_time = find_optimal_design(N_rotor=2)
+R_4_rotor_optimal = Drone_Design(N_rotor=4)
+R_4_rotor_optimal.R, R_4_rotor_optimal.m, R_4_rotor_optimal.P_total, R_4_rotor_optimal.N_blades, R_4_rotor_optimal.flight_time = find_optimal_design(N_rotor=4)
+    
