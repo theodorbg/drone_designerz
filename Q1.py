@@ -12,7 +12,9 @@ m = 1.8 # mass of drone [kg]
 D = 1.2 # rotor diameter [m]
 R = D / 2 # rotor radius [m]
 A = np.pi * R**2 # swept disk area of one rotor disk
-A_blade = 0.170 # m^2 per rotor
+# calculate A_blade
+# A_blade = 
+# A_blade = 0.170 # m^2 per rotor
 Nb = 2 # number of blades per rotors
 W_peak = 510 # peak power [W]
 W_hover = 360 # hover power [W]
@@ -22,8 +24,10 @@ C_d0 = 0.02 # zero-lift drag coefficient
 gamma = 1.15 # induced-loss correction factor
 
 # Mean chord approximation for profile power
-c_mean = A_blade / (Nb * R)
-print(f"Mean chord: {c_mean:.4f} m")
+c_mean = 0.055
+A_blade = c_mean * R * Nb
+# c_mean = A_blade / (Nb * R)
+# print(f"Mean chord: {c_mean:.4f} m")
 
 # Total thrust in hover [m*kg/s^2]
 T_total = m * g_mars

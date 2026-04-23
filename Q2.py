@@ -1,5 +1,5 @@
 import numpy as np
-from funcs import drone_power_stacked_rotors
+from funcs import drone_power
 
 # Ingenuity reference parameters
 m_ingenuity = 1.8 # kg
@@ -12,7 +12,7 @@ P_ingenuity = 177.28 # W
 N_blade = 2 # number of blades per rotor
 N_rotor = 2 # number of rotors (stacked configuration)
 R = 0.6   # m
-c_mean = 0.1417 # m
+c_mean = 0.055 # m
 rpm = 2800 # RPM's
 
 m_payload = 0 # kg
@@ -39,7 +39,7 @@ for i in range(max_iter):
     m_total = m_fuselage + m_no_fuselage
 
     # 3. Compute required power for this mass
-    P_new = drone_power_stacked_rotors(m_total, R, c_mean, rpm, N_blade, N_rotor)
+    P_new = drone_power(m_total, R, c_mean, rpm, N_blade, N_rotor)
 
     # 4. Check convergence
     if abs(P_new - P_drone) < tol:

@@ -15,7 +15,7 @@ m_payload = 2.0
 m_battery_pack = 0.5
 m_components = 1.0
 
-def solve_two_rotor_design(R, N_rotor, N_blade, c_mean=0.1417, rpm=2800,
+def solve_two_rotor_design(R, N_rotor, N_blade, c_mean=0.055, rpm=2800,
                            tol=1e-4, max_iter=1000, alpha=0.5):
     """
     Solve self-consistently for one 2-rotor design.
