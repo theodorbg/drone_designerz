@@ -1,7 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from Q1 import P_rotors_total, R, m, c_mean
-from Q3 import rpm, R_2rotor, R_4rotor
+# from Q3 import rpm, R_2rotor, R_4rotor
+rpm = 2800
+R_2rotor = 0.76
+R_4rotor = 0.66
 
 
 rho_earth = 1.225 

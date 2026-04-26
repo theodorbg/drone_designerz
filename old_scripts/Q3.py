@@ -99,7 +99,7 @@ flight_time_minutes_2rotor_list = [rotor2_results[n][2] for n in n_extra_batteri
 flight_time_minutes_4rotor_list = [rotor4_results[n][2] for n in n_extra_batteries_list]
 plt.figure(figsize=(10,6))
 plt.plot(n_extra_batteries_list, flight_time_minutes_2rotor_list, label='2-Rotor', marker='o')
-plt.plot(n_extra_batteries_list, flight_ftime_minutes_4rotor_list, label='4-Rotor', marker='o')
+# plt.plot(n_extra_batteries_list, flight_ftime_minutes_4rotor_list, label='4-Rotor', marker='o')
 plt.xlabel('Number of Extra Batteries')
 plt.ylabel('Flight Time (minutes)')
 plt.title('Flight Time vs Number of Extra Batteries')

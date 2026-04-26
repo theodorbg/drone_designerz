@@ -3,128 +3,80 @@ import matplotlib.patches as mpatches
 
 import numpy as np
 from planet import Planet
-from drone import Drone
-from plot_funcs import plot_big_grid_search, plot_narrow_grid_search
+from drone import Drone, Ingenuity, DroneDesign
+from blade_design import BladeDesign
+from plot_funcs import (plot_big_grid_search,
+                        plot_narrow_grid_search,
+                        plot_q3_battery_sweep,
+                        plot_weight_distribution_pie,
+                        plot_q4_polars_side_by_side,
+                        plot_q5_twist_subplots,
+                        plot_q5_chord_distribution
+                        )
+from print_funcs import (print_q3_optimums,
+                         print_q2_comparison_latex,
+                         print_q4_reynolds_latex
+                        )
+from parse_txt_funcs import(read_polar_txt,
+                           read_blade_geometry_nasa,
+                           load_rotor_parameters
+                           )
+
+ 
 
 #TODO DO THE FINAL GRID SEARCH
 
 do = {
     "Q1": True,
-    "Q2_test_one_design_dual": False,
-    "Q2_test_one_design_dual_help_func": False,
-    "Q2_test_one_design_quad": False,
-    "Q2_test_one_design_quad_help_func": False,
-    "Q2_BIG_GRID_SEARCH": False,
+    "Q2_BIG_GRID_SEARCH": True,
     "Q2_NARROW_GRID_SEARCH": True,
-    "Q2_FINAL_GRID_SEARCH": False,
-    "Q2_with_help_func": False,
-    "Q3": False,
-    "Q4": False,
-    "Q5": False
+    "Q2_FINAL_GRID_SEARCH": True,
+    "Q3": True,
+    "Q4": True,
+    "Q5": True,
+    "Q6": False
     }
 
 if do["Q1"]:
-    """ 
-    Data from pdf file:
-   
-    
-        Components using battery power: rotors, computer, control motors, and heating systems
-        
-        Assume 2800 rpm for task 1 calculations
-        Assume Cd0 = 0.02 for rotor loss calculations
-            
-        Evaluate dualcopter vs quadcopter drone designs
-        
-        Find the weight, optimum radius of propellers, number of blades and total power consumption
-    
-    INGENUITY REFERENCE DESIGN:
-    
-        WEIGHT DISTRIBUTION OF INGENUITY
-        
-            Two rotors = 70 g = 0.07 kg
-            Battery pack = 280 g = 0.28 kg
-            Propulsion and control motors = 250 g = 0.25 kg
-            Fuselage = 300 g = 0.3 kg
-            Computer and other components = 900 g = 0.9 kg
-            Total = 1800 g = 1.8 kg
-            
-            weight per blade = 70 g / (2 rotors * 2 blades) 
-            
-            Ingenuity payload = 0 kg
-        
-        ROTOR DESIGN
-            two contra-rotating rotors
-                Rotor diameter = 1.2 m
-            From Balaram et al., 2018 we get a constant chord of about 55mm = 0.055 m
-                c_mean = 0.055 m
-        
-        ROTATIONAL SPEED
-            rpm: 2800 rpm
-        
-        POWER CONSUMPTION
-            Under peak load batteries provided: 510 W
-            During hover batteries provided: 360 W
-        
-        BATTERY PACK
-            battery pack energy = 10 Wh
-            batteries per pack = 6
-            
-    NEW DESIGN CONSTRAINTS:
-    
-        New design: payload = 2 kg
-        
-        battery pack mass = 500 g = 0.5 kg
-        battery pack energy = 20 Wh 
-        
-        The blades of your propellers are expected to have the same average weight per unit of 
-        length as those in Ingenuity.
-        weight of one propeller is:
-        
-            weight per propeller: (70g/4) * Nblades * (R/RIngenuity). 
-        
-        The weight of the propulsion and control motors of each rotor scales linearly with the 
-        power in hover of the rotor (this requires your estimation from task 1). 
-        For example, if the propeller of your new design requires a power Pnew, the weight of the motor driving that 
-        propeller is 
-        
-            Pnew = (250g/2)*Pnew/Pingenuity
-        
-        where 250g/2 is the weight of the propulsion motors in Ingenuity divided by its number of rotors,
-        and Pingenuity is the average power consumption per rotor in Ingenuity (estimated in task 1).
-        
-            computer and other components mass = 1000 g = 1 kg
-        
-        The weight of the fuselage scales linearly with the weight of the rest of the aircraft 
-        (including the payload). 
-        So the mass of the fuselage is
-        
-            Mfus = M_no_fuselage*(Mfus_ingenuity/M_no_fuselage_ingenuity) 
-    
-    For each design option (two rotors and quadcopter), compare the following in a table: 
-        1. Radius of the rotor 
-        2. Number of blades 
-        3. Total power consumption from the rotors (total power required to produce the desired 
-        thrust)  
-        4. Aircrafts total mass with payload 
-        5. Flight time in hover 
-        
-        Choose what you believe is the best design and provide the weight distribution estimation (pie chart)
-        
-    """
     print("\nRunning Q1 and generating performance metrics for Ingenuity reference design on planet: Mars\n")
+    
     mars = Planet("Mars", g=3.712)
     
-    ingenuity = Drone(
+    # For Q1 we assume constant chord, so a square blade
+    # Therefore, from nasa report we use the blade area and the rotor radius to get the chord length
+    rotor_params_nasa = load_rotor_parameters("data/ingenuity_nasa_rotor_parameters.txt")
+    # print(rotor_params_nasa["rotor_radius_R"])
+    C_MEAN = rotor_params_nasa["blade_area"] / (rotor_params_nasa["rotor_radius_R"])
+    print(f"Calculated mean chord length from NASA data with rotor radius: {C_MEAN:.4f} m")
+    # We can also use the chord distribution from nasa
+    # load reference data from ingenuity nasa report for twist distribution and chord distribution    
+    blade_geometry_nasa = read_blade_geometry_nasa("data/ingenuity_nasa_blade_geometry.txt")
+    C_MEAN = np.mean(blade_geometry_nasa["chord"])  # Alternatively, we could just take the mean chord length from the NASA data
+    print(f"Calculated mean chord length from NASA data with chord distribution: {C_MEAN:.4f} m")
+    
+    # using the blade area we get 0.28m, using the average we get 0.07m
+    # Probably safe to say blade area formula is wrong, lets use the average chord in Q1-Q4 and then in Q5 we can use the actual chord distribution from the NASA data to design the blades more accurately.
+    
+    ingenuity = Ingenuity(
         name="Ingenuity",
-        mass=1.8, fuselage_mass=0.3, payload_mass=0, battery_mass=0.28,
-        aux_components_mass=0.9, motor_mass=0.25, rotor_mass=0.07,
-        N_batteries=6, total_battery_capacity=10, 
-        rotor_diameter=1.2, chord=0.055, N_blades=2, N_rotors=2,
+        mass=1.8,
+        rotor_diameter=1.2,
+        chord=C_MEAN,
+        aux_components_mass=0.9,
+        fuselage_mass=0.3,
+        battery_total_mass=0.28,
+        rotor_mass=0.07,
+        motor_mass=0.25,
+        battery_total_capacity_wh=10.0,
         rpm=2800,
-        peak_power=510, avg_power=360,
-        C_D0=0.02, gamma=1.15)
+        N_blades=2,
+        N_rotors=2,
+        N_batteries=6,
+        peak_power=510.0,
+        avg_power=360.0
+    )
 
-    ingenuity.planet_performance(mars)
+    ingenuity.compute_planet_performance(mars)
 
     print(f"\n{ingenuity.name}: Total Power = {ingenuity.hover_power:.2f} W, Total Mass = {ingenuity.mass:.2f} kg, Flight Time = {ingenuity.total_hover_time:.2f} s")
     #TODO LOOK INTO FORMULAS (SEE Q1_class.py)
@@ -132,14 +84,13 @@ if do["Q1"]:
 
 if do["Q2_BIG_GRID_SEARCH"]:
     
-    # DESIGN CONSTRAINTS
-    PAYLOAD_MASS = 2.0 # kg
-    BATTERY_PACK_MASS = 0.5 # kg
-    AUX_COMPONENTS_MASS = 1.0 # kg
-    
+    print("\nRunning Q2 BIG GRID SEARCH\n")
+
     # ROTOR DIAMETER GRID SEARCH ARRAY
-    # From 1/3 ingenuity to 4x ingenuity as a starting point
-    diameter_array = np.linspace(ingenuity.rotor_diameter / 3, 4 * ingenuity.rotor_diameter, 10)
+    # From 1/2 ingenuity to 4x ingenuity as a starting point
+    diameter_array = np.linspace(ingenuity.rotor_diameter / 10, # lower bound
+                                 2 * ingenuity.rotor_diameter, # upper bound
+                                 10) # increments
     
     # NUMBER OF BLADES TO TEST
     N_blade_array = [2, 3, 4, 5]
@@ -148,43 +99,49 @@ if do["Q2_BIG_GRID_SEARCH"]:
     converged_drone_designs = []
     
     # Initial guess for solver
-    P_initial = max(ingenuity.hover_power, 1.0)  
+    P_initial = ingenuity.hover_power  
 
     
     for N_blades in N_blade_array:
         for diameter in diameter_array:
         
             # NEW DRONE DESIGN
-            dualCopter = Drone(
+            dualCopter = DroneDesign(
+                reference=ingenuity,
                 name="Dual Copter",
-                mass=0, fuselage_mass=0, payload_mass=PAYLOAD_MASS, battery_mass=BATTERY_PACK_MASS, 
-                aux_components_mass=AUX_COMPONENTS_MASS, motor_mass=0.25, rotor_mass=0,
-                N_batteries=6, total_battery_capacity=10, 
-                rotor_diameter=diameter, chord=0.055, N_blades=N_blades, N_rotors=2,
+                rotor_diameter=diameter,
+                chord=C_MEAN,
+                N_blades=N_blades,
+                N_rotors=2,
                 rpm=2800,
-                peak_power=510, avg_power=360,
-                C_D0=0.02, gamma=1.15)
+                N_batteries=6,
+                payload_mass=2.0,
+                aux_components_mass=1.0
+            )
             
-            quadCopter = Drone(
+            quadCopter = DroneDesign(
+                reference=ingenuity,
                 name="Quad Copter",
-                mass=0, fuselage_mass=0, payload_mass=PAYLOAD_MASS, battery_mass=BATTERY_PACK_MASS, 
-                aux_components_mass=AUX_COMPONENTS_MASS, motor_mass=0.25, rotor_mass=0,
-                N_batteries=6, total_battery_capacity=10,
-                rotor_diameter=diameter, chord=0.055, N_blades=N_blades, N_rotors=4,
+                rotor_diameter=diameter,
+                chord=C_MEAN,
+                N_blades=N_blades,
+                N_rotors=4,
                 rpm=2800,
-                peak_power=510, avg_power=360,
-                C_D0=0.02, gamma=1.15)
+                N_batteries=6,
+                payload_mass=2.0,
+                aux_components_mass=1.0
+            )
             
             drone_designs = [dualCopter, quadCopter]
             
             for drone in drone_designs:
                 # solve for the total power and mass of the drone designs iteratively (since power depends on mass and mass depends on power)
-                result = drone.solve_mass_power(P_initial, ingenuity, mars)
+                result = drone.solve_mass_power(P_initial, mars)
                 if result is not None:
                     # Store the design in the list
                     converged_drone_designs.append(result)
                     # Print results for each converged design
-                    print(f"\n{drone.name}: Total Power = {drone.hover_power:.2f} W, Total Mass = {drone.mass:.2f} kg, Flight Time = {drone.total_hover_time:.2f} s")
+                    # print(f"\n{drone.name}: Total Power = {drone.hover_power:.2f} W, Total Mass = {drone.mass:.2f} kg, Flight Time = {drone.total_hover_time:.2f} s")
 
                 else:
                     print(f"Skipping {drone.name} at R={drone.rotor_radius:.2f} m, blades={drone.N_blades}")
@@ -208,18 +165,15 @@ if do["Q2_BIG_GRID_SEARCH"]:
     print("\nQ2 BIG GRID SEARCH DONE \n")
 
 if do["Q2_NARROW_GRID_SEARCH"]:
-    
-    # DESIGN CONSTRAINTS
-    PAYLOAD_MASS = 2.0 # kg
-    BATTERY_PACK_MASS = 0.5 # kg
-    AUX_COMPONENTS_MASS = 1.0 # kg
+    print("\nRunning Q2 NARROW GRID SEARCH\n")
+
     
     # ROTOR DIAMETER GRID SEARCH ARRAY
     # Now that we have already made a big grid search, we can narrow down the range of rotor diameters to test based on the results of the big grid search.
     # It was very clear that 2 blades was the best option, so we will only test 2 blades in the narrow grid search.
     # Diameter wise, 
-    ROTOR_LOWER_BOUND = 0.44*2
-    ROTOR_UPPER_BOUND = 0.93*2
+    ROTOR_LOWER_BOUND = 0.4*2
+    ROTOR_UPPER_BOUND = 1.0*2
     diameter_array = np.linspace(ROTOR_LOWER_BOUND, ROTOR_UPPER_BOUND, 10)
     
     # ROTOR_LOWER_BOUND_QUAD = 0.5*2
@@ -232,42 +186,48 @@ if do["Q2_NARROW_GRID_SEARCH"]:
     converged_drone_designs = []
     
     # Initial guess for solver
-    P_initial = max(ingenuity.hover_power, 1.0)  
+    P_initial = ingenuity.hover_power  
 
     
     for diameter in diameter_array:
     
         # NEW DRONE DESIGN
-        dualCopter = Drone(
-            name="Dual Copter",
-            mass=0, fuselage_mass=0, payload_mass=PAYLOAD_MASS, battery_mass=BATTERY_PACK_MASS, 
-            aux_components_mass=AUX_COMPONENTS_MASS, motor_mass=0.25, rotor_mass=0,
-            N_batteries=6, total_battery_capacity=10, 
-            rotor_diameter=diameter, chord=0.055, N_blades=N_blade_optimum, N_rotors=2,
-            rpm=2800,
-            peak_power=510, avg_power=360,
-            C_D0=0.02, gamma=1.15)
+        dualCopter = DroneDesign(
+                reference=ingenuity,
+                name="Dual Copter",
+                rotor_diameter=diameter,
+                chord=C_MEAN,
+                N_blades=N_blade_optimum,
+                N_rotors=2,
+                rpm=2800,
+                N_batteries=6,
+                payload_mass=2.0,
+                aux_components_mass=1.0
+            )
         
-        quadCopter = Drone(
-            name="Quad Copter",
-            mass=0, fuselage_mass=0, payload_mass=PAYLOAD_MASS, battery_mass=BATTERY_PACK_MASS, 
-            aux_components_mass=AUX_COMPONENTS_MASS, motor_mass=0.25, rotor_mass=0,
-            N_batteries=6, total_battery_capacity=10,
-            rotor_diameter=diameter, chord=0.055, N_blades=N_blade_optimum, N_rotors=4,
-            rpm=2800,
-            peak_power=510, avg_power=360,
-            C_D0=0.02, gamma=1.15)
+        quadCopter = DroneDesign(
+                reference=ingenuity,
+                name="Quad Copter",
+                rotor_diameter=diameter,
+                chord=C_MEAN,
+                N_blades=N_blade_optimum,
+                N_rotors=4,
+                rpm=2800,
+                N_batteries=6,
+                payload_mass=2.0,
+                aux_components_mass=1.0
+            )
         
         drone_designs = [dualCopter, quadCopter]
         
         for drone in drone_designs:
             # solve for the total power and mass of the drone designs iteratively (since power depends on mass and mass depends on power)
-            result = drone.solve_mass_power(P_initial, ingenuity, mars)
+            result = drone.solve_mass_power(P_initial, mars)
             if result is not None:
                 # Store the design in the list
                 converged_drone_designs.append(result)
                 # Print results for each converged design
-                print(f"\n{drone.name}: Total Power = {drone.hover_power:.2f} W, Total Mass = {drone.mass:.2f} kg, Flight Time = {drone.total_hover_time:.2f} s")
+                # print(f"\n{drone.name}: Total Power = {drone.hover_power:.2f} W, Total Mass = {drone.mass:.2f} kg, Flight Time = {drone.total_hover_time:.2f} s")
 
             else:
                 print(f"Skipping {drone.name} at R={drone.rotor_radius:.2f} m, blades={drone.N_blades}")
@@ -282,65 +242,73 @@ if do["Q2_NARROW_GRID_SEARCH"]:
     print("\nQ2 NARROW GRID SEARCH DONE \n")
 
 if do["Q2_FINAL_GRID_SEARCH"]:
-    
-    # DESIGN CONSTRAINTS
-    PAYLOAD_MASS = 2.0 # kg
-    BATTERY_PACK_MASS = 0.5 # kg
-    AUX_COMPONENTS_MASS = 1.0 # kg
-    
-    # ROTOR DIAMETER GRID SEARCH ARRAY
-    # Now that have narrowed in the rotor radius, we can do a final grid search with a finer resolution around the best performing rotor radius from the narrow grid search.
-    #TODO UPDATE BASED ON PLOT WHEN ALL FORMULAS ARE CHECKED THROUGH
-    # multiply by 2 since diameter = 2*radius
-    ROTOR_LOWER_BOUND_DUAL = 0.75*2
-    ROTOR_UPPER_BOUND_DUAL = 1.25*2
-    diameter_array_dual = np.linspace(ROTOR_LOWER_BOUND_DUAL, ROTOR_UPPER_BOUND_DUAL, 10)
+    print("\nRunning Q2 FINAL GRID SEARCH\n")
+
+    # HARDCODE BOUNDS BASED ON PLOTS
+    ROTOR_LOWER_BOUND_DUAL = 0.6*2
+    ROTOR_UPPER_BOUND_DUAL = 0.8*2
+    diameter_array_dual = np.linspace(ROTOR_LOWER_BOUND_DUAL, ROTOR_UPPER_BOUND_DUAL, 20)
     
     ROTOR_LOWER_BOUND_QUAD = 0.5*2
-    ROTOR_UPPER_BOUND_QUAD = 1.5*2
-    diameter_array_quad = np.linspace(ROTOR_LOWER_BOUND_QUAD, ROTOR_UPPER_BOUND_QUAD, 10)
+    ROTOR_UPPER_BOUND_QUAD = 0.7*2
+    diameter_array_quad = np.linspace(ROTOR_LOWER_BOUND_QUAD, ROTOR_UPPER_BOUND_QUAD, 20)
     
     # NUMBER OF BLADES TO TEST
     N_blade_optimum = 2
     # CREATE LIST TO STORE EACH DRONE DESIGN WHEN THE ITERATIVE METHOD CONVERGES
     converged_drone_designs = []
     
-    for i in range(len(diameter_array_dual)):
-    
-        # NEW DRONE DESIGN
-        dualCopter = Drone(
-            name="Dual Copter",
-            mass=0, fuselage_mass=0, payload_mass=PAYLOAD_MASS, battery_mass=BATTERY_PACK_MASS, 
-            aux_components_mass=AUX_COMPONENTS_MASS, motor_mass=0.25, rotor_mass=0,
-            N_batteries=6, total_battery_capacity=10, 
-            rotor_diameter=diameter_array_dual[i], chord=0.055, N_blades=N_blade_optimum, N_rotors=2,
-            rpm=2800,
-            peak_power=510, avg_power=360,
-            C_D0=0.02, gamma=1.15)
-        
-        quadCopter = Drone(
-            name="Quad Copter",
-            mass=0, fuselage_mass=0, payload_mass=PAYLOAD_MASS, battery_mass=BATTERY_PACK_MASS, 
-            aux_components_mass=AUX_COMPONENTS_MASS, motor_mass=0.25, rotor_mass=0,
-            N_batteries=6, total_battery_capacity=10,
-            rotor_diameter=diameter_array_quad[i], chord=0.055, N_blades=N_blade_optimum, N_rotors=4,
-            rpm=2800,
-            peak_power=510, avg_power=360,
-            C_D0=0.02, gamma=1.15)
-        
-        drone_designs = [dualCopter, quadCopter]
-        
-        for drone in drone_designs:
-            # solve for the total power and mass of the drone designs iteratively (since power depends on mass and mass depends on power)
-            result = drone.solve_mass_power(P_initial, ingenuity, mars)
-            if result is not None:
-                # Store the design in the list
-                converged_drone_designs.append(result)
-                # Print results for each converged design
-                print(f"\n{drone.name}: Total Power = {drone.hover_power:.2f} W, Total Mass = {drone.mass:.2f} kg, Flight Time = {drone.total_hover_time:.2f} s")
+    # Initial guess for solver
+    P_initial = ingenuity.hover_power  
 
-            else:
-                print(f"Skipping {drone.name} at R={drone.rotor_radius:.2f} m, blades={drone.N_blades}")
+    
+    for diameter in diameter_array_dual:
+        dualCopter = DroneDesign(
+                reference=ingenuity,
+                name="Dual Copter",
+                rotor_diameter=diameter,
+                chord=0.055,
+                N_blades=N_blade_optimum,
+                N_rotors=2,
+                rpm=2800,
+                N_batteries=6,
+                payload_mass=2.0,
+                aux_components_mass=1.0
+            )
+        result = dualCopter.solve_mass_power(P_initial, mars)
+        if result is not None:
+            # Store the design in the list
+            converged_drone_designs.append(result)
+            # Print results for each converged design
+            # print(f"\n{dualCopter.name}: Total Power = {dualCopter.hover_power:.2f} W, Total Mass = {dualCopter.mass:.2f} kg, Flight Time = {dualCopter.total_hover_time:.2f} s")
+        else:
+            print(f"Skipping {dualCopter.name} at R={dualCopter.rotor_radius:.2f} m, blades={dualCopter.N_blades}")
+
+
+    for diameter in diameter_array_quad:        
+        quadCopter = DroneDesign(
+                reference=ingenuity,
+                name="Quad Copter",
+                rotor_diameter=diameter,
+                chord=C_MEAN,
+                N_blades=N_blade_optimum,
+                N_rotors=4,
+                rpm=2800,
+                N_batteries=6,
+                payload_mass=2.0,
+                aux_components_mass=1.0
+            )
+                
+        # solve for the total power and mass of the drone designs iteratively (since power depends on mass and mass depends on power)
+        result = quadCopter.solve_mass_power(P_initial, mars)
+        if result is not None:
+            # Store the design in the list
+            converged_drone_designs.append(result)
+            # Print results for each converged design
+            # print(f"\n{quadCopter.name}: Total Power = {quadCopter.hover_power:.2f} W, Total Mass = {quadCopter.mass:.2f} kg, Flight Time = {quadCopter.total_hover_time:.2f} s")
+
+        else:
+            print(f"Skipping {quadCopter.name} at R={quadCopter.rotor_radius:.2f} m, blades={quadCopter.N_blades}")
 
     plot_narrow_grid_search(
         converged_drone_designs=converged_drone_designs,
@@ -353,13 +321,202 @@ if do["Q2_FINAL_GRID_SEARCH"]:
     best_dual = max([d for d in converged_drone_designs if d.name == "Dual Copter"], key=lambda d: d.total_hover_time)
     best_quad = max([d for d in converged_drone_designs if d.name == "Quad Copter"], key=lambda d: d.total_hover_time)
     
-    # Save the configuration (radius and blades) in variables
-    best_dual_config = (best_dual.rotor_radius, best_dual.N_blades)
-    best_quad_config = (best_quad.rotor_radius, best_quad.N_blades)
-    
     # print results for best designs
     print(f"\nBest Dual Copter: Rotor Radius = {best_dual.rotor_radius:.2f} m, Blades = {best_dual.N_blades}, Flight Time = {best_dual.total_hover_time:.2f} s")
     print(f"Best Quad Copter: Rotor Radius = {best_quad.rotor_radius:.2f} m, Blades = {best_quad.N_blades}, Flight Time = {best_quad.total_hover_time:.2f} s")
     
+    print_q2_comparison_latex(
+        best_dual=best_dual,
+        best_quad=best_quad,
+        caption="Final Q2 comparison of dual- and quad-copter designs",
+        label="tab:q2_final_comparison"
+    )
+
+    # Choose best overall by hover time and plot its weight distribution
+    best_overall = best_dual if best_dual.total_hover_time >= best_quad.total_hover_time else best_quad
+    print(f"Chosen best design: {best_overall.name}")
+
+    plot_weight_distribution_pie(
+        design=best_overall,
+        filename="plots/q2_weight_distribution_best_design.png",
+        title=f"Weight Distribution — {best_overall.name}"
+    )
+
+    
     print("\nQ2 FINAL GRID SEARCH DONE \n")
 
+if do["Q3"]:
+    print("\nRunning Q3 and determining optimum number of batteries\n")
+
+    # Requires best_dual / best_quad from Q2_FINAL_GRID_SEARCH
+    if "best_dual" not in locals() or "best_quad" not in locals():
+        raise RuntimeError("Run Q2_FINAL_GRID_SEARCH first to define best_dual and best_quad.")
+
+    max_extra_payload = 2.0  # kg
+    mass_per_battery = float(ingenuity.mass_per_battery)
+    base_batteries = int(ingenuity.N_batteries)
+
+    # Max extra batteries allowed by 2 kg payload constraint
+    N_extra_max_2kg = int(np.floor(max_extra_payload / mass_per_battery))
+    N_batt_max_2kg = base_batteries + N_extra_max_2kg
+
+    print(f"\nMass per battery: {mass_per_battery:.4f} kg")
+    print(f"Base batteries: {base_batteries}")
+    print(f"Max extra batteries within 2 kg: {N_extra_max_2kg}")
+    print(f"Max total batteries within 2 kg: {N_batt_max_2kg}")
+
+    # Evaluate beyond the 2 kg limit so unconstrained optimum can be found
+    N_batt_eval = np.arange(base_batteries, base_batteries + 2 * N_extra_max_2kg + 1, dtype=int)
+
+    P_initial = ingenuity.hover_power
+
+    results = {
+        "Dual Copter": {"N_batt": [], "time_min": []},
+        "Quad Copter": {"N_batt": [], "time_min": []},
+    }
+
+    for n_total in N_batt_eval:
+        dualCopter = DroneDesign(
+            reference=ingenuity,
+            name="Dual Copter",
+            rotor_diameter=best_dual.rotor_diameter,
+            chord=C_MEAN,
+            N_blades=best_dual.N_blades,
+            N_rotors=2,
+            rpm=2800,
+            N_batteries=int(n_total),
+            payload_mass=0,
+            aux_components_mass=1.0
+        )
+
+        quadCopter = DroneDesign(
+            reference=ingenuity,
+            name="Quad Copter",
+            rotor_diameter=best_quad.rotor_diameter,
+            chord=C_MEAN,
+            N_blades=best_quad.N_blades,
+            N_rotors=4,
+            rpm=2800,
+            N_batteries=int(n_total),
+            payload_mass=0,
+            aux_components_mass=1.0
+        )
+
+        for drone in (dualCopter, quadCopter):
+            result = drone.solve_mass_power(P_initial, mars)
+            if result is not None:
+                results[drone.name]["N_batt"].append(int(n_total))
+                results[drone.name]["time_min"].append(drone.total_hover_time / 60.0)
+
+    plot_q3_battery_sweep(
+        results=results,
+        N_batt_max_2kg=N_batt_max_2kg,
+        filename="plots/q3_flight_time_vs_N_batteries.png"
+    )
+
+    print_q3_optimums(
+        results=results,
+        N_batt_max_2kg=N_batt_max_2kg
+    )
+
+    print("\nQ3 DONE\n")
+
+if do["Q4"]:
+    """
+    • Cl vs Cd and Cl vs AoA at the corresponding Reynolds number.  
+    Hint 1: Check the bibliography, such as: Theory of Wing Sections, Including a Summary of Airfoil 
+    Data [4], and Airfoil Design and Data [5]. Airfoil tools website (http://airfoiltools.com/) 
+    Hint 2: In case the source of the airfoil you chose does not have the data at the desired Reynolds, 
+    import the geometry and simulate it in Xfoil. However, keep in mind that you may have to increase 
+    the number of iterations and use a conservative estimate
+    """
+    print("\nRunning Q4 and calculating Reynolds numbers for Earth and Mars\n")
+    
+    earth = Planet("Earth", g=9.81, rho=1.225, viscosity=1.8e-5)
+    mars = Planet("Mars", g=3.72, rho=0.01503, viscosity=1.3e-5)
+    
+    def compute_reynolds(planet, drone, r_fraction):
+        # Calculate velocity at r_fraction of rotor radius
+        R = drone.rotor_radius
+        rpm = drone.rpm
+        r = r_fraction * R
+        V = rpm * 2 * np.pi * r / 60.0
+        
+        # Calculate Reynolds number
+        Re = planet.rho * V * drone.chord / planet.viscosity
+        return Re
+    
+    planets = [earth, mars]
+    drones = [best_dual, best_quad]
+    r_fraction = 0.75
+    reynolds_results = {}
+    for planet in planets:
+        print(f"\nReynolds numbers at r={r_fraction}R on {planet.name}:")
+        for drone in drones:
+            Re = compute_reynolds(planet, drone, r_fraction)
+            reynolds_results[(planet.name, drone.name)] = Re
+            print(f"  {drone.name}: Re = {Re:.2e}")
+            
+    # Calculate differences in Reynolds numbers between Earth and Mars for each drone
+    print(f"\nDifference in Reynolds numbers between Earth and Mars at r={r_fraction}R:")
+    reynolds_diffs = {}
+    for drone in drones:
+        Re_earth = reynolds_results[("Earth", drone.name)]
+        Re_mars = reynolds_results[("Mars", drone.name)]
+        diff = Re_earth - Re_mars
+        reynolds_diffs[drone.name] = diff
+        print(f"  {drone.name}: ΔRe = {diff:.2e}")
+        
+    print_q4_reynolds_latex(reynolds_results, reynolds_diffs)
+    
+    # plot cl vs cd and cl vs aoa
+    # xfoil is bugging so right now we use experimental data
+    polars = read_polar_txt("data/clf5605_us_fp_polar.txt")
+    plot_q4_polars_side_by_side(polars=polars, filename="plots/q4_cl_cd_and_cl_aoa.png")
+
+    
+    
+    print("\nQ4 DONE\n")
+    
+if do["Q5"]:
+    print("\nRunning Q5 and designing blades based on optimum design\n")
+    
+    # load reference data from ingenuity nasa report for twist distribution and chord distribution    
+    blade_geometry_nasa = read_blade_geometry_nasa("data/ingenuity_nasa_blade_geometry.txt")
+    
+    # We can use the tip chord length from the reference data to more accurately compute the chord distribution
+    C_TIP = blade_geometry_nasa['chord'][-1]  # Assuming the first entry corresponds to the tip chord
+    print(f"Using tip chord length from NASA data for blade design: {C_TIP:.4f} m")
+
+    
+    drones = [best_dual, best_quad]
+    blade_designs = []
+    for drone in drones:
+        blade_design = BladeDesign(drone=drone, planet=mars)
+        blade_design.compute_no_twist()
+        blade_design.compute_linear_twist()
+        blade_design.compute_optimum_twist()
+        blade_design.compute_optimum_plan_form_and_twist(C_TIP)
+        blade_designs.append(blade_design)
+    
+
+    
+        
+    plot_q5_twist_subplots(blade_designs=blade_designs, blade_geometry_nasa=blade_geometry_nasa,
+        filename="plots/q5_twist_distributions.png"
+    )
+    
+    plot_q5_chord_distribution(blade_designs=blade_designs, blade_geometry_nasa=blade_geometry_nasa,
+        filename="plots/q5_chord_distribution.png")
+    
+    
+    #TODO Plot the distribution of 𝑑𝐶𝑇 (𝑑𝐶𝑇 = 𝑑𝑇/(𝜌𝐴𝑉𝑡𝑖𝑝2 )) and 𝑑𝑃 vs the non-dimensional radius. 
+    
+    #TODO For your final design, calculate the total power required by the rotor and thrust delivered, and compare it with your result from Task 2. Your final design must be capable of delivering the desired thrust. 
+    print("\nQ5 DONE\n")
+
+if do["Q6"]:
+    print("\nRunning Q6 and performing final analysis\n")
+    
+    #TODO Forward flight and stuff like that
+    print("\nQ6 DONE\n")

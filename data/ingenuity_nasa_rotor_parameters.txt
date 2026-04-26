@@ -1,0 +1,11 @@
+# Ingenuity Rotor Key Parameters - Table 1
+# Source: NASA/TM-20240001510, Mars Helicopter Ingenuity Rotor Geometry
+# Format: parameter, value, unit
+parameter                           value     unit
+rotor_radius_R                      0.605     m
+disk_area_A                         1.150     m2
+blade_area                          0.170     m2
+solidity_thrust_weighted            0.14782   -
+design_RPM                          2600      RPM
+rotor_rotor_spacing                 0.099     m
+quarter_chord_aft_of_pitch_axis     0.0075    m
