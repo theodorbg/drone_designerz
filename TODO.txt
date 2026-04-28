@@ -1,0 +1,9 @@
+#1 
+    make sure that thrust is divided by number of rotors
+    T=m*g
+    with two rotors each rotor must produce half that thrust
+
+#2 verify radians / degrees everywhere
+
+# choose realistic chord
+

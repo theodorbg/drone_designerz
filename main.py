@@ -337,9 +337,15 @@ if do["Q2_FINAL_GRID_SEARCH"]:
     print(f"Chosen best design: {best_overall.name}")
 
     plot_weight_distribution_pie(
-        design=best_overall,
-        filename="plots/q2_weight_distribution_best_design.png",
-        title=f"Weight Distribution — {best_overall.name}"
+        design=best_dual,
+        filename="plots/q2_weight_distribution_best_dual_design.png",
+        title=f"Weight Distribution — {best_dual.name}"
+    )
+    
+    plot_weight_distribution_pie(
+        design=best_quad,
+        filename="plots/q2_weight_distribution_best_quad_design.png",
+        title=f"Weight Distribution — {best_quad.name}"
     )
 
     
@@ -485,7 +491,7 @@ if do["Q5"]:
     blade_geometry_nasa = read_blade_geometry_nasa("data/ingenuity_nasa_blade_geometry.txt")
     
     # We can use the tip chord length from the reference data to more accurately compute the chord distribution
-    C_TIP = blade_geometry_nasa['chord'][-1]  # Assuming the first entry corresponds to the tip chord
+    C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
     print(f"Using tip chord length from NASA data for blade design: {C_TIP:.4f} m")
 
     
@@ -498,9 +504,7 @@ if do["Q5"]:
         blade_design.compute_optimum_twist()
         blade_design.compute_optimum_plan_form_and_twist(C_TIP)
         blade_designs.append(blade_design)
-    
-
-    
+        
         
     plot_q5_twist_subplots(blade_designs=blade_designs, blade_geometry_nasa=blade_geometry_nasa,
         filename="plots/q5_twist_distributions.png"
