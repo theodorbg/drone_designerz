@@ -496,9 +496,13 @@ if do["Q5"]:
 
     
     drones = [best_dual, best_quad]
-    blade_designs = []
-    for drone in drones:
-        blade_design = BladeDesign(drone=drone, planet=mars)
+    
+    dual_blade_design = BladeDesign(drone=best_dual, planet=mars)
+    quad_blade_design = BladeDesign(drone=best_quad, planet=mars)
+    
+    blade_designs = [dual_blade_design, quad_blade_design]
+    
+    for blade_design in blade_designs:
         blade_design.compute_no_twist()
         blade_design.compute_linear_twist()
         blade_design.compute_optimum_twist()
@@ -513,6 +517,11 @@ if do["Q5"]:
     plot_q5_chord_distribution(blade_designs=blade_designs, blade_geometry_nasa=blade_geometry_nasa,
         filename="plots/q5_chord_distribution.png")
     
+    #TODO IMPLEMENT BEM
+    
+    dual_blade_design.bem()
+    dual_blade_design.total_thrust = np.sum(dual_blade_design.dT_be)
+    dual_blade_design.compute_total_power()  
     
     #TODO Plot the distribution of 𝑑𝐶𝑇 (𝑑𝐶𝑇 = 𝑑𝑇/(𝜌𝐴𝑉𝑡𝑖𝑝2 )) and 𝑑𝑃 vs the non-dimensional radius. 
     
