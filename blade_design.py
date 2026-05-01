@@ -22,7 +22,7 @@ class BladeDesign:
         self.aoa_rad = np.radians(self.aoa_deg)
         # interp Cl vs aoa to find alpha0 (zero lift angle) and Cl_alpha (slope of Cl vs aoa)
         # the slope of the lift curve, denoted as Cl_alpha, is measured at the zero lift angle of attack. 
-        self.alpha_0_deg, self.alpha_0_rad, self.Cl_alpha = self.alpha_from_cl(0.0, self.Cl, self.aoa_deg, n_fit=len(self.Cl))
+        self.alpha_0_rad, self.Cl_alpha = self.alpha_from_cl(0.0, self.Cl, self.aoa_deg, n_fit=len(self.Cl))
         self.solidity = drone.solidity
         
         self.mass = drone.mass
@@ -35,24 +35,45 @@ class BladeDesign:
 
     def compute_no_twist(self):
         
-        self.no_twist = (3 * (self.C_T / (self.solidity * self.Cl_alpha) + 1/4 * sqrt(self.C_T) ) + self.alpha_0_deg)
+        # permanent pitch angle esentially
+        self.no_twist = np.degrees((3 * (self.C_T / (self.solidity * self.Cl_alpha) + 1/4 * sqrt(self.C_T) ) + self.alpha_0_rad))
+        
+        #make it into an array distributed along self.y
+        self.no_twist = np.full_like(self.y, self.no_twist)
         
         return self
     
     def compute_linear_twist(self):
         
-        theta_tip = (12/5 * (self.C_T / (self.solidity * self.Cl_alpha) + 1/4 * sqrt(self.C_T)  + 1/3*self.alpha_0_deg))
+        theta_tip = (12/5 * (self.C_T / (self.solidity * self.Cl_alpha) + 1/4 * sqrt(self.C_T)  + 1/3*self.alpha_0_rad))
         theta = theta_tip**(2 - self.y)
-        self.linear_twist = theta
+        self.linear_twist = np.degrees(theta)
         
         return self
     
     def compute_optimum_twist(self):
         
-        theta_tip = (2 * (self.C_T / (self.solidity * self.Cl_alpha) + 1/2 * sqrt(self.C_T)  + 2/3 * self.alpha_0_deg))
-        self.optimum_twist = theta_tip / self.y
+        theta_tip = (2 * (self.C_T / (self.solidity * self.Cl_alpha) + 1/2 * sqrt(self.C_T)  + 2/3 * self.alpha_0_rad))
+        self.optimum_twist = np.degrees(theta_tip / self.y)
         
         return self
+    
+    # def compute_optimum_twist(self):
+    #     print(f"DEBUG: C_T = {self.C_T}")
+    #     print(f"DEBUG: solidity = {self.solidity}")
+    #     print(f"DEBUG: Cl_alpha = {self.Cl_alpha}")
+    #     print(f"DEBUG: alpha_0_rad = {self.alpha_0_rad} ({np.degrees(self.alpha_0_rad)} deg)")
+        
+    #     theta_tip = (2 * (self.C_T / (self.solidity * self.Cl_alpha) + 1/2 * sqrt(self.C_T)  + 2/3 * self.alpha_0_rad))
+    #     print(f"DEBUG: theta_tip = {theta_tip}")
+    #     print(f"DEBUG: theta_tip / y[0] = {theta_tip / self.y[0]}")
+        
+    #     self.optimum_twist = np.degrees(theta_tip / self.y)
+    #     print(f"DEBUG: optimum_twist[0] = {self.optimum_twist[0]}, optimum_twist[-1] = {self.optimum_twist[-1]}")
+        
+    #     return self
+    
+
     
     def compute_optimum_plan_form_and_twist(self, c_tip):
         
@@ -103,8 +124,8 @@ class BladeDesign:
         # Reorder Cl and aoa according to the sorted indices
         Cls = np.asarray(Cl)[idx]
         # Reorder aoa according to the sorted indices
-        aos = np.asarray(aoa)[idx]
-        aoas_rad = np.radians(aos)
+        aoas_rad = np.radians(np.asarray(aoa)[idx])
+        
 
         # Ensure n_fit is at least 2 and does not exceed the number of available data points
         n_fit = max(2, min(n_fit, len(Cls)))
@@ -116,17 +137,14 @@ class BladeDesign:
 
         # alpha at target Cl (interp in-range, extrap out-of-range)
         if Cls[0] <= cl_target <= Cls[-1]:
-            target_aoa = np.interp(cl_target, Cls, aos)
+            target_aoa_rad = np.interp(cl_target, Cls, aoas_rad)
         else:
-            target_aoa = m * cl_target + b
+            target_aoa_rad = m * cl_target + b
 
         # Cl_alpha is dCl/d(alpha). Since m = d(alpha)/dCl, invert it.
         Cl_alpha = np.inf if np.isclose(m, 0.0) else 1.0 / m
-        
-        target_aoa_deg = target_aoa
-        target_aoa_rad = np.radians(target_aoa_deg)
 
-        return float(target_aoa_deg), float(target_aoa_rad), float(Cl_alpha)
+        return float(target_aoa_rad), float(Cl_alpha)
     
     def prandtl_tip_correction(self, phi_rad, method="linear"):
         #eq 89

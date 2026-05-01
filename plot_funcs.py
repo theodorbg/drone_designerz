@@ -244,9 +244,8 @@ def plot_q5_twist_subplots(blade_designs, blade_geometry_nasa, filename="plots/q
         (axes[1], blade_designs[1], "Quad Copter"),
     ]:
         y = design.y
-        no_twist = [design.no_twist] * len(y)
 
-        ax.plot(y, no_twist, marker="o", label="No twist")
+        ax.plot(y, design.no_twist, marker="o", label="No twist")
         ax.plot(y, design.linear_twist, marker="o", label="Linear twist")
         ax.plot(y, design.optimum_twist, marker="o", label="Optimum twist")
         ax.plot(y, design.theta_optimum_plan_form, marker="o", label="Optimum planform + twist")

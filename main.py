@@ -34,6 +34,7 @@ do = {
     "Q3": True,
     "Q4": True,
     "Q5": True,
+    "bem": False,
     "Q6": False
     }
 
@@ -497,18 +498,29 @@ if do["Q5"]:
     
     drones = [best_dual, best_quad]
     
+    print("initialize best dual")
     dual_blade_design = BladeDesign(drone=best_dual, planet=mars)
+    print("initialize best quad")
     quad_blade_design = BladeDesign(drone=best_quad, planet=mars)
     
     blade_designs = [dual_blade_design, quad_blade_design]
+    computed_blade_designs = []
+
+    print("Computing blade designs...")
     
     for blade_design in blade_designs:
         blade_design.compute_no_twist()
+        print(f"Computed no twist for {blade_design.__class__.__name__}")
         blade_design.compute_linear_twist()
+        print(f"Computed linear twist for {blade_design.__class__.__name__}")
         blade_design.compute_optimum_twist()
+        print(f"Computed optimum twist for {blade_design.__class__.__name__}")
         blade_design.compute_optimum_plan_form_and_twist(C_TIP)
-        blade_designs.append(blade_design)
-        
+        print(f"Computed optimum plan form and twist for {blade_design.__class__.__name__}")
+        computed_blade_designs.append(blade_design)
+        print(f"Appended {blade_design.__class__.__name__} to computed_blade_designs")
+
+    blade_designs = computed_blade_designs        
         
     plot_q5_twist_subplots(blade_designs=blade_designs, blade_geometry_nasa=blade_geometry_nasa,
         filename="plots/q5_twist_distributions.png"
@@ -519,15 +531,18 @@ if do["Q5"]:
     
     #TODO IMPLEMENT BEM
     
-    dual_blade_design.bem()
-    dual_blade_design.total_thrust = np.sum(dual_blade_design.dT_be)
-    dual_blade_design.compute_total_power()  
+    # dual_blade_design.bem()
+    # dual_blade_design.total_thrust = np.sum(dual_blade_design.dT_be)
+    # dual_blade_design.compute_total_power()  
     
     #TODO Plot the distribution of 𝑑𝐶𝑇 (𝑑𝐶𝑇 = 𝑑𝑇/(𝜌𝐴𝑉𝑡𝑖𝑝2 )) and 𝑑𝑃 vs the non-dimensional radius. 
     
     #TODO For your final design, calculate the total power required by the rotor and thrust delivered, and compare it with your result from Task 2. Your final design must be capable of delivering the desired thrust. 
     print("\nQ5 DONE\n")
 
+if do["bem"]:
+    pass
+    
 if do["Q6"]:
     print("\nRunning Q6 and performing final analysis\n")
     
