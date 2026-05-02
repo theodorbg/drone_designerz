@@ -425,3 +425,34 @@ class DroneDesign(Drone):
         print(f"Warning: did not converge after {max_iter} iterations. Residual = {abs(P_new - P_drone):.4f} W")
         return None
             
+    def bem(self, blade):
+        """
+        Compute the BEM solution for the drone design, given a blade design and the planet properties.
+        This is a simplified vectorized implementation of the BEM loop for hover, which requires the twist and chord distributions to be set in the blade design before calling.
+        It returns the per-element induced velocity v_i, vrel, dT_be, dT_mom.
+        """
+        
+        # extract necessary properties from drone and planet
+        # compute bem for one blade
+        blade.bem()
+        blade.total_thrust = np.sum(blade.dT_be)
+        blade.total_power = np.sum(blade.dPower)
+        
+        self.total_thrust_generation = blade.total_thrust * self.N_rotors * self.N_blades
+        self.total_power_generation = blade.total_power * self.N_rotors * self.N_blades
+
+    def bem_dimensionless(self, blade):
+        """
+        Compute the BEM solution for the drone design, given a blade design and the planet properties.
+        This is a simplified vectorized implementation of the BEM loop for hover, which requires the twist and chord distributions to be set in the blade design before calling.
+        It returns the per-element induced velocity v_i, vrel, dT_be, dT_mom.
+        """
+        
+        # extract necessary properties from drone and planet
+        # compute bem for one blade
+        blade.bem_dimensionless()
+        blade.total_thrust = np.sum(blade.dT_be)
+        blade.total_power = np.sum(blade.dPower)
+        
+        self.total_thrust_generation = blade.total_thrust * self.N_rotors * self.N_blades
+        self.total_power_generation = blade.total_power * self.N_rotors * self.N_blades

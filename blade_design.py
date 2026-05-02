@@ -7,17 +7,19 @@ from parse_txt_funcs import(read_polar_txt,
                            )
 
 class BladeDesign:
-    def __init__(self, drone, planet, polar_data="data/clf5605_us_fp_polar.txt", no_blade_elements=12):
+    def __init__(self, drone, planet, c_tip, polar_data="data/clf5605_us_fp_polar.txt", no_blade_elements=12):
         self.R = drone.rotor_radius
         self.A = pi * self.R**2
         # Cut off the blade at 80% of the radius to avoid the root region where the flow is complex and the blade may not be effective
         self.drone = drone
         r_cut_off = 0.2 * self.R
         self.r = np.linspace(r_cut_off, self.R, no_blade_elements)  # Avoid r=0 to prevent singularity
+        self.c_tip = c_tip
         
         self.polar = read_polar_txt(polar_data)
         self.y = self.r / self.R  # Normalized radius
         self.Cl = self.polar["Cl"]
+        self.Cd = self.polar["Cd"]
         self.aoa_deg = self.polar["alpha"]  
         self.aoa_rad = np.radians(self.aoa_deg)
         # interp Cl vs aoa to find alpha0 (zero lift angle) and Cl_alpha (slope of Cl vs aoa)
@@ -46,7 +48,7 @@ class BladeDesign:
     def compute_linear_twist(self):
         
         theta_tip = (12/5 * (self.C_T / (self.solidity * self.Cl_alpha) + 1/4 * sqrt(self.C_T)  + 1/3*self.alpha_0_rad))
-        theta = theta_tip**(2 - self.y)
+        theta = theta_tip * (2 - self.y)
         self.linear_twist = np.degrees(theta)
         
         return self
@@ -58,26 +60,9 @@ class BladeDesign:
         
         return self
     
-    # def compute_optimum_twist(self):
-    #     print(f"DEBUG: C_T = {self.C_T}")
-    #     print(f"DEBUG: solidity = {self.solidity}")
-    #     print(f"DEBUG: Cl_alpha = {self.Cl_alpha}")
-    #     print(f"DEBUG: alpha_0_rad = {self.alpha_0_rad} ({np.degrees(self.alpha_0_rad)} deg)")
+    def compute_optimum_plan_form_and_twist(self):
         
-    #     theta_tip = (2 * (self.C_T / (self.solidity * self.Cl_alpha) + 1/2 * sqrt(self.C_T)  + 2/3 * self.alpha_0_rad))
-    #     print(f"DEBUG: theta_tip = {theta_tip}")
-    #     print(f"DEBUG: theta_tip / y[0] = {theta_tip / self.y[0]}")
-        
-    #     self.optimum_twist = np.degrees(theta_tip / self.y)
-    #     print(f"DEBUG: optimum_twist[0] = {self.optimum_twist[0]}, optimum_twist[-1] = {self.optimum_twist[-1]}")
-        
-    #     return self
-    
-
-    
-    def compute_optimum_plan_form_and_twist(self, c_tip):
-        
-        self.chord_distribution = c_tip / self.y
+        self.optimum_chord_distribution = self.c_tip / self.y
         # induced_velocity = 1/2 * sqrt(self.C_T)
         # flow_angle = induced_velocity / self.y
         # alpha_D = pitch_angle - flow_angle
@@ -89,12 +74,19 @@ class BladeDesign:
         
         return self
     
-    def define_design_twist(self):
-        self.design_twist = self.theta_optimum_plan_form
+    def define_twist(self):
+        """ this function actually defines what the design twist is
+        TODO: DO SOMETHING FROM THE ROOT UNTIL 0.2*R
+        """
+        #DEGREES
+        self.twist = self.theta_optimum_plan_form
         #TODO DEFINE ACTUAL TWIST DISTRIBUTION
         
-    def define_design_chord(self, c_tip):
-        self.design_chord = self.chord_distribution
+    def define_chord(self):
+        """ this function actually defines what the design chord distribution is
+        TODO: DO SOMETHING FROM THE ROOT UNTIL 0.2*R
+        """
+        self.chord = self.optimum_chord_distribution
         #TODO DEFINE ACTUAL CHORD DISTRIBUTION
     
     def find_design_aoa(self):
@@ -146,7 +138,7 @@ class BladeDesign:
 
         return float(target_aoa_rad), float(Cl_alpha)
     
-    def prandtl_tip_correction(self, phi_rad, method="linear"):
+    def prandtl_tip_correction(self, phi_rad: float, method: str):
         #eq 89
         r = self.r
         phi_deg = np.degrees(phi_rad)
@@ -161,135 +153,211 @@ class BladeDesign:
         F = 2 / pi * np.arccos(np.exp(-f))
         return F
 
-    def bem(self, tol=1e-6):
+    def prandtl_tip_correction_dimensionless(self, phi: float):
         
+        Nb = self.drone.N_blades
+        y = self.y
+        sin_phi = np.sin(phi) # phi in radians
+        
+        f = Nb / 2 * (1-y)/(y * sin_phi)
+        
+        F = 2 / pi * np.arccos(np.exp(-f))
+        return F
+    
+    def bem(self, tol=1e-6):
+        """
+        Simplified vectorized BEM loop for hover.
+        Requires: self.twist (degrees-like array or scalar) and self.chord (array) set before calling.
+        Returns per-element induced velocity v_i, vrel, dT_be, dT_mom.
+        """
+
+        
+        # C is constant hard coded to 0.5 (typical value (slide 10 lec 11))
+        C = 0.5
+        A = self.A
+        R = self.R
         omega = self.omega
         sigma = self.solidity
-        Cla = self.Cl_alpha_rad
-        F = self.prandtl_tip_correction(phi_rad, method=method)
-        theta = self.design_twist
-        alpha0 = self.alpha_0_rad
+        Cla = self.Cl_alpha
+        theta_rad = np.radians(self.twist)
+        alpha0_rad = self.alpha_0_rad
         y = self.y
         Nb = self.drone.N_blades
-        c = self.design_chord
+        c = self.chord
+        rho = self.rho
+        r = self.r
+        if theta_rad is None or c is None:
+            raise ValueError("design_twist and design_chord must be set before calling bem()")
+        
+        # WE ARE IN HOVER SO v_climb = 0
+        v_climb = 0.0
 
 
         # below equation 88
              
-        phi_rad = np.arctan(u_i / (omega * r)) # flow angle
+        # phi_rad = np.arctan(u_i / (omega * r)) # flow angle
+        #TODO FIND OUT IF IT IS THIS EQUATION OR THIS:             phi_rad = np.arccos(omega * r / vrel) # flow angle
+
         
         
     
-        # C is constant hard coded to 0.5 (typical value (slide 10 lec 11))
-        C = 0.5
         
-        # assume initial induced velocity value v_i
-        v_i_initial = 1
-        # create array to store induced velocity for each blade element (size = len(self.r))
-        self.v_i = np.array([v_i_initial] * len(self.r))
+        # assume initial induced velocity value v_i guess per element
+        v_i = np.zeros_like(r)
+        dr = r[1] - r[0]  # Assuming uniform spacing of blade elements
+        diff = np.inf  # Initialize diff to a large value for the while loop
 
         while diff > tol:
             
             #relative velocity
-            self.vrel = sqrt((v_climb + self.v_i)**2 + (omega * r)**2) # local relative velocity
+            vrel = sqrt((v_climb + v_i)**2 + (omega * r)**2) # local relative velocity
+            
             # flow angle
-            phi_rad = np.arccos(omega * r / self.vrel) # flow angle
+            # phi_rad = np.arccos(omega * r / vrel) # flow angle
+            
+            
+            phi_rad = np.arctan2(v_climb + v_i, omega * r)  # flow angle
+
             # angle of attack
             aoa_rad = theta_rad - phi_rad
             # interpolate lift and drag coefficients from polar data (self.polar)
-            cl = np.interp(self.polar["alpha"], self.aoa_rad, self.Cl)
-            cd = np.interp(self.polar["alpha"], self.aoa_rad, self.Cd)
+            cl = np.interp(aoa_rad, self.aoa_rad, self.Cl)
+            cd = np.interp(aoa_rad, self.aoa_rad, self.Cd)
             # tip correction
-            F = self.prandtl_tip_correction(phi_rad, method=method)
+            F = self.prandtl_tip_correction(phi_rad, method="non-linear")
+            
             # Thrust (Blade element (BE))
-            self.dT_be = 0.5 * Nb * rho * c * self.vrel**2 * (cl * cos(phi_rad) - cd * sin(phi_rad)) * dr
+            dT_be = 0.5 * Nb * rho * c * vrel**2 * (cl * cos(phi_rad) - cd * sin(phi_rad)) * dr
             # Thrust (momentum (mom))
-            self.dT_mom = 4 * pi * rho * (v_climb + self.v_i) * self.v_i * r * dr
+            dT_mom = 4 * pi * rho * (v_climb + v_i) * v_i * r * dr
             # update induced velocity
-            self.v_i = self.v_i + C * (self.dT_be - F * self.dT_mom)
+            v_i = v_i + C * (dT_be - F * dT_mom)
             
             # check for convergence
-            diff = np.abs(self.dT_be - F * self.dT_mom)
-            
-    
-    def bem_dimensionless(self):
-        lambda_i = v_i / (omega * r)
-        lambda_c = v_climb / (omega * r)
+            diff = float(np.max(np.abs(dT_be - F * dT_mom)))
         
-        dC_T_mom = 8 * (lambda_c + lambda_i) * lambda_i * y * dy
-        dC_T_be = sigma * ((lambda_c + lambda_i)**2 + y**2) * (cl*cos(phi_rad) - cd * sin(phi_rad)) * dy
-        
-        lambda_i = lambda_i + C * (dC_T_be - F * dC_T_mom)
-         
-    def bem_advanced(self, method="linear", hover=True, tol=1e-6):
-        if hover==True:
-            lambda_c,v_climb = 0.0
-        
+        # store final values
+        self.dPower = 0.5 * Nb * omega * rho * c * vrel**2 * (cl * sin(phi_rad) + cd * cos(phi_rad)) * r * dr
+        self.dCt_mom = dT_mom / (0.5 * rho * A * (omega * R)**2)
+        self.v_i = v_i
+        self.vrel = vrel
+        self.dT_be = dT_be
+        self.dT_mom = dT_mom
+        return self
+
+    def bem_linear(self, tol=1e-6):
+        """
+        Simplified vectorized BEM loop for hover.
+        Requires: self.twist (degrees-like array or scalar) and self.chord (array) set before calling.
+        Returns per-element induced velocity v_i, vrel, dT_be, dT_mom.
+        """        
+        # C is constant hard coded to 0.5 (typical value (slide 10 lec 11))
+        C = 0.5
+        A = self.A
+        R = self.R
         omega = self.omega
         sigma = self.solidity
-        Cla = self.Cl_alpha_rad
-        F = self.prandtl_tip_correction(phi_rad, method=method)
-        theta = self.design_twist
-        alpha0 = self.alpha_0_rad
+        Cla = self.Cl_alpha
+        theta_rad = np.radians(self.twist)
+        alpha0_rad = self.alpha_0_rad
         y = self.y
         Nb = self.drone.N_blades
-        c = self.design_chord
-
-
-        # below equation 88
-             
-        phi_rad = np.arctan(u_i / (omega * r)) # flow angle
+        c = self.chord
+        rho = self.rho
+        r = self.r
+        if theta_rad is None or c is None:
+            raise ValueError("design_twist and design_chord must be set before calling bem()")
         
-        
-        if method == "non-linear":
-            # C is constant hard coded to 0.5 (typical value (slide 10 lec 11))
-            C = 0.5
+        # WE ARE IN HOVER SO v_climb = 0
+        v_climb = 0.0
+        # below equation 88             
+        # phi_rad = np.arctan(u_i / (omega * r)) # flow angle
+        #TODO FIND OUT IF IT IS THIS EQUATION OR THIS:             phi_rad = np.arccos(omega * r / vrel) # flow angle
+
+        # assume initial induced velocity value v_i guess per element
+        v_i = np.zeros_like(r)
+        dr = r[1] - r[0]  # Assuming uniform spacing of blade elements
+        diff = np.inf  # Initialize diff to a large value for the while loop
+
+        while diff > tol:
             
-            # assume initial induced velocity value v_i
-            v_i_initial = 1
-            # create array to store induced velocity for each blade element (size = len(self.r))
-            self.v_i = np.array([v_i_initial] * len(self.r))
-
-            while diff > tol:
-                
-                #relative velocity
-                self.vrel = sqrt((v_climb + self.v_i)**2 + (omega * r)**2) # local relative velocity
-                # flow angle
-                phi_rad = np.arccos(omega * r / self.vrel) # flow angle
-                # angle of attack
-                aoa_rad = theta_rad - phi_rad
-                # interpolate lift and drag coefficients from polar data (self.polar)
-                cl = np.interp(self.polar["alpha"], self.aoa_rad, self.Cl)
-                cd = np.interp(self.polar["alpha"], self.aoa_rad, self.Cd)
-                # tip correction
-                F = self.prandtl_tip_correction(phi_rad, method=method)
-                # Thrust (Blade element (BE))
-                self.dT_be = 0.5 * Nb * rho * c * self.vrel**2 * (cl * cos(phi_rad) - cd * sin(phi_rad)) * dr
-                # Thrust (momentum (mom))
-                self.dT_mom = 4 * pi * rho * (v_climb + self.v_i) * self.v_i * r * dr
-                # update induced velocity
-                self.v_i = self.v_i + C * (self.dT_be - F * self.dT_mom)
-                
-                # check for convergence
-                diff = np.abs(self.dT_be - F * self.dT_mom)
-                
-        
-        if method == "linear":
-            #eq 98
+            #relative velocity
+            vrel = sqrt((v_climb + v_i)**2 + (omega * r)**2) # local relative velocity
             
-            if hover == True:
-                lambda_i = (sigma * Cla) / (16 * F) * (sqrt(1+32*F/(sigma * Cla) * (theta - alpha0) * y) - 1)
-            else:
-                lambda_i = -1/2 * (lambda_c + sigma * Cla / (8 * F) - sqrt((lambda_c + sigma * Cla / (8 * F))**2 + sigma * Cla * (theta - alpha0) * y / (2 * F) ))
+            # flow angle
+            # phi_rad = np.arccos(omega * r / vrel) # flow angle
+            
+            
+            phi_rad = np.arctan2(v_climb + v_i, omega * r)  # flow angle
+            cos_phi = 1
+            sin_phi = phi_rad
 
-    def compute_total_power(self):
+            # angle of attack
+            aoa_rad = theta_rad - phi_rad
+            # interpolate lift and drag coefficients from polar data (self.polar)
+            cl = Cla * (aoa_rad - alpha0)  # linear lift curve assumption            cd = np.interp(aoa_rad, self.aoa_rad, self.Cd)
+            # tip correction
+            F = self.prandtl_tip_correction(phi_rad, method="linear")
+            
+            # Thrust (Blade element (BE))
+            dT_be = 0.5 * Nb * rho * c * vrel**2 * (cl * cos_phi - cd * sin_phi) * dr
+            # Thrust (momentum (mom))
+            dT_mom = 4 * pi * rho * (v_climb + v_i) * v_i * r * dr
+            # update induced velocity
+            v_i = v_i + C * (dT_be - F * dT_mom)
+            
+            # check for convergence
+            diff = float(np.max(np.abs(dT_be - F * dT_mom)))
+        
+        # store final values
+        self.dPower = 0.5 * Nb * omega * rho * c * vrel**2 * (cl * sin_phi + cd * cos_phi) * r * dr
+        self.dCt_mom = dT_mom / (0.5 * rho * A * (omega * R)**2)
+        self.v_i = v_i
+        self.vrel = vrel
+        self.dT_be = dT_be
+        self.dT_mom = dT_mom
+        return self
+
+    def bem_dimensionless(self, tol=1e-6):
+        # lambda_i = v_i / (omega * r)
+        # lambda_c = v_climb / (omega * r)
+        
+        lambda_i = np.zeros_like(self.r)
+        lambda_c = np.zeros_like(self.r)
         Nb = self.drone.N_blades
         omega = self.omega
         rho = self.rho
-        c = self.design_chord
-        vrel = self.vrel
+        c = self.chord
+        theta_rad = np.radians(self.twist)
+        sigma = self.solidity
+        y = self.y
+        r = self.r
+        R = self.R
         A = self.A
         
-        self.dPower = 0.5 * Nb * rho * c * vrel**2 * (cl * sin(phi_rad) + cd * cos(phi_rad)) * self.r * dr
-        self.total_power = np.sum(self.dPower)
-        self.cp = self.total_power / (0.5 * rho * A * (omega * R)**3) 
+        diff = np.inf  # Initialize diff to a large value for the while loop
+        dy = y[1] - y[0]  # Assuming uniform spacing of blade elements in dimensionless radius
+
+        while diff > tol:
+            phi_rad = np.arctan2(lambda_i, y)  # flow angle
+            dC_T_mom = 8 * (lambda_c + lambda_i) * lambda_i * y * dy
+            dC_T_be = sigma * ((lambda_c + lambda_i)**2 + y**2) * (cl*cos(phi_rad) - cd * sin(phi_rad)) * dy
+            F = self.prandtl_tip_correction_dimensionless(phi_rad)
+            lambda_i = lambda_i + C * (dC_T_be - F * dC_T_mom)
+            diff = float(np.max(np.abs(dC_T_be - F * dC_T_mom)))
+        
+        self.dC_T_be = dC_T_be
+        self.dC_T_mom = dC_T_mom
+        v_i = lambda_i * omega * R
+        aoa_rad = theta_rad - phi_rad
+        # interpolate lift and drag coefficients from polar data (self.polar)
+        cl = np.interp(aoa_rad, self.aoa_rad, self.Cl)
+        cd = np.interp(aoa_rad, self.aoa_rad, self.Cd)
+
+        self.dPower = 0.5 * Nb * omega * rho * c * vrel**2 * (cl * sin(phi_rad) + cd * cos(phi_rad)) * r * dr
+        self.dCt_mom = dT_mom / (0.5 * rho * A * (omega * R)**2)
+
+        self.dT_be = self.dC_T_be *(0.5 * rho * A * (omega * R)**2)
+
+         
+    

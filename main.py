@@ -28,13 +28,13 @@ from parse_txt_funcs import(read_polar_txt,
 
 do = {
     "Q1": True,
-    "Q2_BIG_GRID_SEARCH": True,
-    "Q2_NARROW_GRID_SEARCH": True,
-    "Q2_FINAL_GRID_SEARCH": True,
-    "Q3": True,
-    "Q4": True,
-    "Q5": True,
-    "bem": False,
+    "Q2_BIG_GRID_SEARCH": False,
+    "Q2_NARROW_GRID_SEARCH": False,
+    "Q2_FINAL_GRID_SEARCH": False,
+    "Q3": False,
+    "Q4": False,
+    "Q5": False,
+    "bem": True,
     "Q6": False
     }
 
@@ -541,7 +541,42 @@ if do["Q5"]:
     print("\nQ5 DONE\n")
 
 if do["bem"]:
-    pass
+    drone = DroneDesign(
+                reference=ingenuity,
+                name="bemDrone",
+                rotor_diameter=0.76,
+                chord=0.055,
+                N_blades=2,
+                N_rotors=2,
+                rpm=2800,
+                N_batteries=48,
+                payload_mass=0.0,
+                aux_components_mass=1.0
+            )
+    
+    drone.solve_mass_power(P_initial=ingenuity.hover_power, planet=mars)
+    # load reference data from ingenuity nasa report for twist distribution and chord distribution    
+    blade_geometry_nasa = read_blade_geometry_nasa("data/ingenuity_nasa_blade_geometry.txt")
+    
+    # We can use the tip chord length from the reference data to more accurately compute the chord distribution
+    C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
+    print(f"Using tip chord length from NASA data for blade design: {C_TIP:.4f} m")
+
+    print("computing twist and chord distribution for bemDrone (full bem)")
+    blade = BladeDesign(drone=drone, planet=mars, c_tip=C_TIP)
+    blade.compute_optimum_plan_form_and_twist()
+    blade.define_chord()
+    blade.define_twist()
+    drone.bem(blade)
+    
+    print(f"\nBEM results for bemDrone: Total Power = {drone.total_power_generation:.2f} W, Total Thrust = {drone.total_thrust_generation:.2f} N")
+    print(f"Required hover power from mass-power solver: {drone.hover_power:.2f} W, required thrust: {drone.total_thrust:.2f} N")
+    
+    print("computing twist and chord distribution for bemDrone (dimensionless)")
+    drone.bem_dimensionless(blade)
+    
+    print(f"\nBEM results for bemDrone: Total Power = {drone.total_power_generation:.2f} W, Total Thrust = {drone.total_thrust_generation:.2f} N")
+    print(f"Required hover power from mass-power solver: {drone.hover_power:.2f} W, required thrust: {drone.total_thrust:.2f} N")
     
 if do["Q6"]:
     print("\nRunning Q6 and performing final analysis\n")
