@@ -85,7 +85,7 @@ class Drone:
         
     """
 
-    def __init__(self, name: str, rotor_diameter: float, chord: float, aux_components_mass: float,
+    def __init__(self, name: str, rotor_diameter: float, chord: np.ndarray, aux_components_mass: float,
                  N_blades: int, N_rotors: int, rpm: int, N_batteries: int,
                  C_D0: float=0.02, gamma: float=1.15):
         
@@ -95,8 +95,9 @@ class Drone:
         self.rotor_diameter = rotor_diameter
         self.rotor_radius = rotor_diameter / 2
         self.rotor_area = pi * self.rotor_radius**2
-        self.chord = chord
-        self.blade_area = chord * self.rotor_radius
+        self.chord = np.atleast_1d(np.asarray(chord, dtype=float))
+        self.blade_area = np.trapz(self.chord, 
+                                np.linspace(0, self.rotor_radius, len(self.chord)))
         self.N_blades = N_blades
         self.N_rotors = N_rotors
         
@@ -166,13 +167,36 @@ class Drone:
 
         p0_per_rotor = 1/8 * rho * c * Nb * Cd0 * omega**3 * R**4
         self.power_loss = self.N_rotors * p0_per_rotor
-           
+    
+    def compute_power_loss(self, rho):
+        Nb   = self.N_blades
+        Cd0  = self.C_D0
+        omega = self.omega
+        R    = self.rotor_radius
+        c    = np.atleast_1d(np.asarray(self.chord, dtype=float))
+
+        if len(c) == 1:
+            # constant chord — exact closed form
+            p0_per_rotor = 1/8 * rho * c[0] * Nb * Cd0 * omega**3 * R**4
+        else:
+            # distributed chord — integrate numerically
+            # dP0 = 1/2 * rho * Nb * c(r) * Cd0 * (omega*r)^3 * dr
+            r = np.linspace(0, R, len(c))
+            integrand = c * (omega * r)**3          # c(r) * (Ωr)³
+            p0_per_rotor = 0.5 * rho * Nb * Cd0 * np.trapz(integrand, r)
+
+        self.power_loss = self.N_rotors * p0_per_rotor
+    
     def compute_local_solidity(self):
         Nb = self.N_blades
-        c = self.chord
-        R = self.rotor_radius
+        R  = self.rotor_radius
+        r  = np.linspace(0, R, len(self.chord))
+                
+        # total solidity: all blades / disk area
+        self.solidity = Nb * self.blade_area / (pi * R**2)
         
-        self.solidity = Nb * c / (pi * R)
+        # local solidity distribution (used in BEM per-element)
+        self.local_solidity = Nb * self.chord / (pi * R)
         
     def compute_Cp(self):
         
@@ -212,76 +236,6 @@ class Drone:
         # flight time in seconds from battery capacity and hover power
         self.total_hover_time = self.total_battery_capacity / self.hover_power
     
-    def bem(self, blade):
-        """
-        Compute the BEM solution for the drone design, given a blade design and the planet properties.
-        This is a simplified vectorized implementation of the BEM loop for hover, which requires the twist and chord distributions to be set in the blade design before calling.
-        It returns the per-element induced velocity v_i, vrel, dT_be, dT_mom.
-        """
-        
-        # extract necessary properties from drone and planet
-        # compute bem for one blade
-        blade.bem()
-        blade.total_thrust = np.sum(blade.dT)
-        blade.total_power = np.sum(blade.dPower)
-        
-        self.total_thrust_generation = blade.total_thrust * self.N_rotors * self.N_blades
-        self.total_power_generation = blade.total_power * self.N_rotors * self.N_blades
-        
-        blade.total_thrust_be = np.sum(blade.dT_be)
-        blade.total_thrust_mom = np.sum(blade.dT_mom)
-        
-        self.total_thrust_generation_be = blade.total_thrust_be * self.N_rotors * self.N_blades
-        self.total_thrust_generation_mom = blade.total_thrust_mom * self.N_rotors * self.N_blades
-
-
-
-    def bem_dimensionless(self, blade):
-        """
-        Compute the BEM solution for the drone design, given a blade design and the planet properties.
-        This is a simplified vectorized implementation of the BEM loop for hover, which requires the twist and chord distributions to be set in the blade design before calling.
-        It returns the per-element induced velocity v_i, vrel, dT_be, dT_mom.
-        """
-        
-        # extract necessary properties from drone and planet
-        # compute bem for one blade
-        blade.bem_dimensionless()
-        blade.total_thrust = np.sum(blade.dT)
-        blade.total_power = np.sum(blade.dPower)
-        
-        self.total_thrust_generation = blade.total_thrust * self.N_rotors * self.N_blades
-        self.total_power_generation = blade.total_power * self.N_rotors * self.N_blades
-
-        blade.total_thrust_be = np.sum(blade.dT_be)
-        blade.total_thrust_mom = np.sum(blade.dT_mom)
-        
-        self.total_thrust_generation_be = blade.total_thrust_be * self.N_rotors * self.N_blades
-        self.total_thrust_generation_mom = blade.total_thrust_mom * self.N_rotors * self.N_blades
-
-
-
-    def bem_linear(self, blade):
-        """
-        Compute the BEM solution for the drone design, given a blade design and the planet properties.
-        This is a simplified vectorized implementation of the BEM loop for hover, which requires the twist and chord distributions to be set in the blade design before calling.
-        It returns the per-element induced velocity v_i, vrel, dT_be, dT_mom.
-        """
-
-        # extract necessary properties from drone and planet
-        # compute bem for one blade
-        blade.bem_linear()
-        blade.total_thrust = np.sum(blade.dT)
-        blade.total_power = np.sum(blade.dPower)
-
-        self.total_thrust_generation = blade.total_thrust * self.N_rotors * self.N_blades
-        self.total_power_generation = blade.total_power * self.N_rotors * self.N_blades
-        
-        blade.total_thrust_be = np.sum(blade.dT_be)
-        blade.total_thrust_mom = np.sum(blade.dT_mom)
-        
-        self.total_thrust_generation_be = blade.total_thrust_be * self.N_rotors * self.N_blades
-        self.total_thrust_generation_mom = blade.total_thrust_mom * self.N_rotors * self.N_blades
-
     def bem_master(self, blade, linear=False, dimensionless=False):
         """
         Compute the BEM solution for the drone design, given a blade design and the planet properties.
@@ -291,23 +245,21 @@ class Drone:
 
         # extract necessary properties from drone and planet
         # compute bem for one blade
-        blade.bem_master(linear=linear, dimensionless=dimensionless)
+        blade.bem(linear=linear, dimensionless=dimensionless)
         blade.total_thrust = np.sum(blade.dT)
         blade.total_power = np.sum(blade.dPower)
 
         self.total_thrust_generation = blade.total_thrust * self.N_rotors * self.N_blades
         self.total_power_generation = blade.total_power * self.N_rotors * self.N_blades
         
-        blade.total_thrust_be = np.sum(blade.dT_be)
-        blade.total_thrust_mom = np.sum(blade.dT_mom)
-        
-        self.total_thrust_generation_be = blade.total_thrust_be * self.N_rotors * self.N_blades
-        self.total_thrust_generation_mom = blade.total_thrust_mom * self.N_rotors * self.N_blades
+        c_mean = np.mean(self.chord)
+        self.AR = self.rotor_radius / c_mean        
 
     def print_bem_results(self):
         print(f"Total power generated by BEM: {self.total_power_generation:.2f} W, Total thrust generated by BEM: {self.total_thrust_generation:.2f} N")
         print(f"Required hover power from mass-power solver: {self.hover_power:.2f} W, required thrust: {self.total_thrust:.2f} N\n")
-        
+        print(f"Rotor aspect ratio: {self.AR:.2f}")
+        print(f"Mean chord: {np.mean(self.chord):.3f} m")
         # print(f"thrust BE: {self.total_thrust_generation_be:.2f} N")
         # print(f"thrust MOM: {self.total_thrust_generation_mom:.2f} N")
 

@@ -164,7 +164,6 @@ def plot_weight_distribution_pie(design, filename, title=None):
     plt.savefig(filename, dpi=200)
     plt.close()
 
-
 def plot_q3_battery_sweep(results, N_batt_max_2kg, filename="plots/q3_flight_time_vs_N_batteries.png"):
     """Plot flight time vs total batteries and mark unconstrained/constrained optima."""
     plt.figure(figsize=(10, 5))
@@ -235,7 +234,6 @@ def plot_q4_polars_side_by_side(polars, filename="plots/q4_polars_side_by_side.p
     plt.savefig(filename, dpi=200)
     plt.close()
 
-
 def plot_q5_twist_subplots(blade_designs, blade_geometry_nasa, filename="plots/q5_twist_distributions.png"):
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
 
@@ -273,3 +271,48 @@ def plot_q5_chord_distribution(blade_designs, blade_geometry_nasa, filename="plo
     plt.legend()
     plt.savefig(filename, dpi=200)
     plt.close()
+
+def plot_q5_bem_chord_sweep(drone_designs, c_tip_array, thrust_margin, power_margin, filename="plots/q5_bem_chord_sweep.png"):
+    """
+    Plot BEM thrust/power vs required thrust/power across the tip chord sweep, along with margins.
+
+    Assumes drone_designs is a list of DroneDesign objects corresponding to each c_tip in c_tip_array, and that each DroneDesign has attributes:
+    - total_thrust_generation (from BEM)
+    - total_power_generation (from BEM)
+    - total_thrust (required from mass-power solver)
+    - hover_power (required from mass-power solver)
+    thrust and power margin: numbers representing the desired margin (e.g. 0.1 for 10% margin) to plot as dashed lines above the required values.
+    """
+    import matplotlib.pyplot as plt
+
+    thrust_be  = [d.total_thrust_generation for d in drone_designs]
+    power_be   = [d.total_power_generation  for d in drone_designs]
+    req_thrust = [d.total_thrust            for d in drone_designs]
+    req_power  = [d.hover_power             for d in drone_designs]
+    thrust_margins = [thrust * (1 + thrust_margin) for thrust in req_thrust]
+    power_margins = [power * (1 + power_margin) for power in req_power]
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 7), sharex=True)
+
+    # Thrust
+    ax1.plot(c_tip_array, thrust_be,  'o-', label='BEM Thrust')
+    ax1.plot(c_tip_array, req_thrust, 'r--', label='Required Thrust')
+    ax1.plot(c_tip_array, thrust_margins, 'g--', label='Thrust Margin')
+    ax1.set_ylabel("Thrust (N)")
+    ax1.legend()
+    ax1.grid(True, linestyle='--', alpha=0.5)
+
+    # Power
+    ax2.plot(c_tip_array, power_be,  'o-', color='tab:orange', label='BEM Power')
+    ax2.plot(c_tip_array, req_power, 'r--', label='Required Power')
+    ax2.plot(c_tip_array, power_margins, 'g--', label='Power Margin')
+    ax2.set_ylabel("Power (W)")
+    ax2.set_xlabel("Tip Chord (m)")
+    ax2.legend()
+    ax2.grid(True, linestyle='--', alpha=0.5)
+
+    fig.suptitle("BEM Output vs Tip Chord (optimum twist/chord design)")
+    plt.tight_layout()
+    plt.savefig(filename, dpi=150)
+    plt.close()
+    

@@ -11,7 +11,8 @@ from plot_funcs import (plot_big_grid_search,
                         plot_weight_distribution_pie,
                         plot_q4_polars_side_by_side,
                         plot_q5_twist_subplots,
-                        plot_q5_chord_distribution
+                        plot_q5_chord_distribution,
+                        plot_q5_bem_chord_sweep
                         )
 from print_funcs import (print_q3_optimums,
                          print_q2_comparison_latex,
@@ -67,11 +68,14 @@ if do["Q1"]:
     # using the blade area we get 0.28m, using the average we get 0.07m
     # Probably safe to say blade area formula is wrong, lets use the average chord in Q1-Q4 and then in Q5 we can use the actual chord distribution from the NASA data to design the blades more accurately.
     
+    # lets try with the actual chord distribution
+    CHORD_REF = np.array(blade_geometry_nasa["chord"])
+    
     ingenuity = Ingenuity(
         name="Ingenuity",
         mass=1.8,
         rotor_diameter=1.2,
-        chord=C_MEAN,
+        chord=CHORD_REF,
         aux_components_mass=0.9,
         fuselage_mass=0.3,
         battery_total_mass=0.28,
@@ -120,7 +124,7 @@ if do["Q2_BIG_GRID_SEARCH"]:
                 reference=ingenuity,
                 name="Dual Copter",
                 rotor_diameter=diameter,
-                chord=C_MEAN,
+                chord=CHORD_REF,
                 N_blades=N_blades,
                 N_rotors=2,
                 rpm=2800,
@@ -133,7 +137,7 @@ if do["Q2_BIG_GRID_SEARCH"]:
                 reference=ingenuity,
                 name="Quad Copter",
                 rotor_diameter=diameter,
-                chord=C_MEAN,
+                chord=CHORD_REF,
                 N_blades=N_blades,
                 N_rotors=4,
                 rpm=2800,
@@ -207,7 +211,7 @@ if do["Q2_NARROW_GRID_SEARCH"]:
                 reference=ingenuity,
                 name="Dual Copter",
                 rotor_diameter=diameter,
-                chord=C_MEAN,
+                chord=CHORD_REF,
                 N_blades=N_blade_optimum,
                 N_rotors=2,
                 rpm=2800,
@@ -220,7 +224,7 @@ if do["Q2_NARROW_GRID_SEARCH"]:
                 reference=ingenuity,
                 name="Quad Copter",
                 rotor_diameter=diameter,
-                chord=C_MEAN,
+                chord=CHORD_REF,
                 N_blades=N_blade_optimum,
                 N_rotors=4,
                 rpm=2800,
@@ -279,7 +283,7 @@ if do["Q2_FINAL_GRID_SEARCH"]:
                 reference=ingenuity,
                 name="Dual Copter",
                 rotor_diameter=diameter,
-                chord=C_MEAN,
+                chord=CHORD_REF,
                 N_blades=N_blade_optimum,
                 N_rotors=2,
                 rpm=2800,
@@ -302,7 +306,7 @@ if do["Q2_FINAL_GRID_SEARCH"]:
                 reference=ingenuity,
                 name="Quad Copter",
                 rotor_diameter=diameter,
-                chord=C_MEAN,
+                chord=CHORD_REF,
                 N_blades=N_blade_optimum,
                 N_rotors=4,
                 rpm=2800,
@@ -399,7 +403,7 @@ if do["Q3"]:
             reference=ingenuity,
             name="Dual Copter",
             rotor_diameter=best_dual.rotor_diameter,
-            chord=C_MEAN,
+            chord=CHORD_REF,
             N_blades=best_dual.N_blades,
             N_rotors=2,
             rpm=2800,
@@ -412,7 +416,7 @@ if do["Q3"]:
             reference=ingenuity,
             name="Quad Copter",
             rotor_diameter=best_quad.rotor_diameter,
-            chord=C_MEAN,
+            chord=CHORD_REF,
             N_blades=best_quad.N_blades,
             N_rotors=4,
             rpm=2800,
@@ -603,6 +607,7 @@ if do["bem_template"]:
     drone.print_bem_results()
     
 if do["Q5_bem"]:
+    print("\n################### Q5 BEM CHORD OPTIMIZATION ###################\n")
     print("\nRunning Q5 BEM and designing blades based on optimum design\n")
 
     # load reference data from ingenuity nasa report for twist distribution and chord distribution    
@@ -614,11 +619,25 @@ if do["Q5_bem"]:
     # anyways, lets try to iterate through chord lengths and see if we can get enough torque for our design, with the twist we have already computed
     
     # because we want to use the full chord distribution now, we need to generate a drone instance, so we can generate a blade instance
-    drone = DroneDesign(
+    # with starting point in this example drone instance, we can iterate over a c_tip array, to first generate a chord distributtion, and then generate a drone based on that
+    # We can use the tip chord length from the reference data as the shortest chord
+    C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
+
+
+    c_tip_array = np.linspace(0.22, 0.30, 100)
+    # define desired thrust and power margins
+    thrust_margin = 0.1  # 10% more thrust than required
+    power_margin = 0.1   # 10% more power than required
+    blade_designs = []
+    drone_designs = []
+    
+    # choose the chord that gives us enough thrust and power with the smallest margin, and print its results
+    for c_tip in c_tip_array:
+        drone = DroneDesign(
                     reference=ingenuity,
                     name="bemDrone",
                     rotor_diameter=0.76,
-                    chord=C_MEAN,
+                    chord=c_tip,
                     N_blades=2,
                     N_rotors=2,
                     rpm=2800,
@@ -626,15 +645,9 @@ if do["Q5_bem"]:
                     payload_mass=0.0,
                     aux_components_mass=1.0
                 )
-    # with starting point in this example drone instance, we can iterate over a c_tip array, to first generate a chord distributtion, and then generate a drone based on that
-    # We can use the tip chord length from the reference data as the shortest chord
-    C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
+        drone.solve_mass_power(P_initial=ingenuity.hover_power, planet=mars)
 
-
-    
-    
-    for chord in np.linspace(C_TIP, 0.2, 10):
-        blade = BladeDesign(drone=drone, planet=mars, c_tip=chord, no_blade_elements=NO_BLADE_ELEMENTS)
+        blade = BladeDesign(drone=drone, planet=mars, c_tip=c_tip, no_blade_elements=NO_BLADE_ELEMENTS)
         blade.compute_optimum_plan_form_and_twist()
         blade.set_chord(blade.optimum_chord_distribution)
         drone = DroneDesign(
@@ -652,20 +665,49 @@ if do["Q5_bem"]:
         
         drone.solve_mass_power(P_initial=ingenuity.hover_power, planet=mars)
         
-        # We can use the tip chord length from the reference data to more accurately compute the chord distribution
-        C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
-        # print(f"Using tip chord length from NASA data for blade design: {C_TIP:.4f} m")
-
-        blade = BladeDesign(drone=drone, planet=mars, c_tip=C_TIP, no_blade_elements=NO_BLADE_ELEMENTS)
+        blade = BladeDesign(drone=drone, planet=mars, c_tip=c_tip, no_blade_elements=NO_BLADE_ELEMENTS)
         blade.compute_optimum_plan_form_and_twist()
         blade.set_chord(blade.optimum_chord_distribution)
         blade.set_twist(blade.theta_optimum_plan_form)
         
-        print("\DESIGN BLADE NON-LINEAR W. DIMENSIONS\n")
         drone.bem_master(blade, linear=False, dimensionless=False)
-        drone.print_bem_results()
+        blade_designs.append(blade)
+        drone_designs.append(drone)
+    
+    # get design with c_tip that meets thrust requirements    
+    optimal_drone = None
+    optimal_blade = None
+    optimal_c_tip  = None
 
+    for c_tip, drone, blade in zip(c_tip_array, drone_designs, blade_designs):
+        thrust_ok = drone.total_thrust_generation >= drone.total_thrust * (1 + thrust_margin)
+        
+        if thrust_ok:
+            optimal_drone = drone
+            optimal_blade = blade
+            optimal_c_tip  = c_tip
+            break  # smallest c_tip meeting thrust requirement
 
+    if optimal_drone is not None:
+        print(f"\nOptimal tip chord: {optimal_c_tip:.4f} m")
+        optimal_drone.print_bem_results()
+    else:
+        print("No design meets thrust requirement. Increase c_tip range.")
+    
+    # now we want to see which designs produce enough torque and power
+    # therefore, lets make this plot:
+    # x axis: c_tip
+    # subplot 1: torque
+    # subplot 2: power
+    # horizontal lines: required torque and power for hover
+    # hint: values stored like this:
+    # print(f"Total power generated by BEM: {self.total_power_generation:.2f} W, Total thrust generated by BEM: {self.total_thrust_generation:.2f} N")
+    # print(f"Required hover power from mass-power solver: {self.hover_power:.2f} W, required thrust: {self.total_thrust:.2f} N\n")
+    
+    plot_q5_bem_chord_sweep(drone_designs, c_tip_array, thrust_margin=thrust_margin, power_margin=power_margin, filename="plots/q5_bem_chord_sweep.png")
+
+    
+    
 if do["bem"]:
     print("\n ############ BEM THREE SEPERATE FUNCTIONS TEST ############\n")
     drone = DroneDesign(
