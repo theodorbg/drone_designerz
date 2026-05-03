@@ -34,11 +34,15 @@ do = {
     "Q3": False,
     "Q4": False,
     "Q5": False,
-    "bem": True,
+    "Q5_bem": True,
+    "bem_template": True,
+    "bem": False,
+    "bem_master": False,
     "Q6": False
     }
 
 if do["Q1"]:
+    print("\n################### Q1 ###################\n")
     print("\nRunning Q1 and generating performance metrics for Ingenuity reference design on planet: Mars\n")
     
     mars = Planet("Mars", g=3.712)
@@ -54,6 +58,11 @@ if do["Q1"]:
     blade_geometry_nasa = read_blade_geometry_nasa("data/ingenuity_nasa_blade_geometry.txt")
     C_MEAN = np.mean(blade_geometry_nasa["chord"])  # Alternatively, we could just take the mean chord length from the NASA data
     print(f"Calculated mean chord length from NASA data with chord distribution: {C_MEAN:.4f} m")
+    C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
+    print(f"Using tip chord length from NASA data for blade design: {C_TIP:.4f} m")
+    # for our design, lets make a scaling factor to set the tip chord based on the mean chord
+    #c_tip_design = c_mean_design * (C_TIP / C_MEAN)
+
     
     # using the blade area we get 0.28m, using the average we get 0.07m
     # Probably safe to say blade area formula is wrong, lets use the average chord in Q1-Q4 and then in Q5 we can use the actual chord distribution from the NASA data to design the blades more accurately.
@@ -84,7 +93,7 @@ if do["Q1"]:
     print("\nQ1 DONE \n")
 
 if do["Q2_BIG_GRID_SEARCH"]:
-    
+    print("\n################### Q2_BIG_GRID_SEARCH ###################\n")
     print("\nRunning Q2 BIG GRID SEARCH\n")
 
     # ROTOR DIAMETER GRID SEARCH ARRAY
@@ -166,6 +175,7 @@ if do["Q2_BIG_GRID_SEARCH"]:
     print("\nQ2 BIG GRID SEARCH DONE \n")
 
 if do["Q2_NARROW_GRID_SEARCH"]:
+    PRINT("\n################### Q2_NARROW_GRID_SEARCH ###################\n")
     print("\nRunning Q2 NARROW GRID SEARCH\n")
 
     
@@ -243,6 +253,7 @@ if do["Q2_NARROW_GRID_SEARCH"]:
     print("\nQ2 NARROW GRID SEARCH DONE \n")
 
 if do["Q2_FINAL_GRID_SEARCH"]:
+    print("\n################### Q2_FINAL_GRID_SEARCH ###################\n")
     print("\nRunning Q2 FINAL GRID SEARCH\n")
 
     # HARDCODE BOUNDS BASED ON PLOTS
@@ -268,7 +279,7 @@ if do["Q2_FINAL_GRID_SEARCH"]:
                 reference=ingenuity,
                 name="Dual Copter",
                 rotor_diameter=diameter,
-                chord=0.055,
+                chord=C_MEAN,
                 N_blades=N_blade_optimum,
                 N_rotors=2,
                 rpm=2800,
@@ -353,6 +364,7 @@ if do["Q2_FINAL_GRID_SEARCH"]:
     print("\nQ2 FINAL GRID SEARCH DONE \n")
 
 if do["Q3"]:
+    print("\n################### Q3 ###################\n")
     print("\nRunning Q3 and determining optimum number of batteries\n")
 
     # Requires best_dual / best_quad from Q2_FINAL_GRID_SEARCH
@@ -429,6 +441,8 @@ if do["Q3"]:
     print("\nQ3 DONE\n")
 
 if do["Q4"]:
+    print("\n################### Q4 ###################\n")
+
     """
     • Cl vs Cd and Cl vs AoA at the corresponding Reynolds number.  
     Hint 1: Check the bibliography, such as: Theory of Wing Sections, Including a Summary of Airfoil 
@@ -445,12 +459,13 @@ if do["Q4"]:
     def compute_reynolds(planet, drone, r_fraction):
         # Calculate velocity at r_fraction of rotor radius
         R = drone.rotor_radius
+        c = drone.chord
         rpm = drone.rpm
         r = r_fraction * R
         V = rpm * 2 * np.pi * r / 60.0
         
         # Calculate Reynolds number
-        Re = planet.rho * V * drone.chord / planet.viscosity
+        Re = planet.rho * V * c / planet.viscosity
         return Re
     
     planets = [earth, mars]
@@ -486,6 +501,8 @@ if do["Q4"]:
     print("\nQ4 DONE\n")
     
 if do["Q5"]:
+    print("\n################### Q5 ###################\n")
+
     print("\nRunning Q5 and designing blades based on optimum design\n")
     
     # load reference data from ingenuity nasa report for twist distribution and chord distribution    
@@ -540,7 +557,8 @@ if do["Q5"]:
     #TODO For your final design, calculate the total power required by the rotor and thrust delivered, and compare it with your result from Task 2. Your final design must be capable of delivering the desired thrust. 
     print("\nQ5 DONE\n")
 
-if do["bem"]:
+if do["bem_template"]:
+    print("\n################### BEM TEMPLATE ###################\n")
     drone = DroneDesign(
                 reference=ingenuity,
                 name="bemDrone",
@@ -557,27 +575,223 @@ if do["bem"]:
     drone.solve_mass_power(P_initial=ingenuity.hover_power, planet=mars)
     # load reference data from ingenuity nasa report for twist distribution and chord distribution    
     blade_geometry_nasa = read_blade_geometry_nasa("data/ingenuity_nasa_blade_geometry.txt")
+    NO_BLADE_ELEMENTS = len(blade_geometry_nasa['y'])
+    # print(f"Number of blade elements based on NASA data: {NO_BLADE_ELEMENTS}")
+    
+    # TEST BEM ON INGENUITY
+    ref_blade = BladeDesign(drone=ingenuity, planet=mars, c_tip=C_MEAN, no_blade_elements=NO_BLADE_ELEMENTS)
+    ref_blade.set_chord(blade_geometry_nasa['chord'])
+    ref_blade.set_twist(blade_geometry_nasa['twist_deg'])
+    # print("We assume airfoil clf 5605 across the whole blade, even though its a simplification, since we cannot get cl/cd experimental for station 1,2,3,4 and xfoil fails at these low Reynolds numbers. We are afterall only using the last 80\% of the blade, and clf5605 is used from 40\% to 80\% anyways so its only 20\% of the rotor that has a different airfoil that we are simplifying compared to our own blade design.\n")
+    print("\INGENUITY NON-LINEAR W. DIMENSIONS\n")
+    ingenuity.bem_master(ref_blade, linear=False, dimensionless=False)
+    ingenuity.print_bem_results()
+    # print(f"Induced velocity for reference blade: {ref_blade.v_i}")
+    
     
     # We can use the tip chord length from the reference data to more accurately compute the chord distribution
     C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
-    print(f"Using tip chord length from NASA data for blade design: {C_TIP:.4f} m")
+    # print(f"Using tip chord length from NASA data for blade design: {C_TIP:.4f} m")
+
+    blade = BladeDesign(drone=drone, planet=mars, c_tip=C_TIP, no_blade_elements=NO_BLADE_ELEMENTS)
+    blade.compute_optimum_plan_form_and_twist()
+    blade.set_chord(blade.optimum_chord_distribution)
+    blade.set_twist(blade.theta_optimum_plan_form)
+    
+    print("\DESIGN BLADE NON-LINEAR W. DIMENSIONS\n")
+    drone.bem_master(blade, linear=False, dimensionless=False)
+    drone.print_bem_results()
+    
+if do["Q5_bem"]:
+    print("\nRunning Q5 BEM and designing blades based on optimum design\n")
+
+    # load reference data from ingenuity nasa report for twist distribution and chord distribution    
+    blade_geometry_nasa = read_blade_geometry_nasa("data/ingenuity_nasa_blade_geometry.txt")
+    NO_BLADE_ELEMENTS = len(blade_geometry_nasa['y'])
+
+    # so we found out with "bem" and "bem_master" that our chord is likely too small.
+    # we also found out that our bem likely has some bugs, since we cant even produce enough torque for ingenuity
+    # anyways, lets try to iterate through chord lengths and see if we can get enough torque for our design, with the twist we have already computed
+    
+    # because we want to use the full chord distribution now, we need to generate a drone instance, so we can generate a blade instance
+    drone = DroneDesign(
+                    reference=ingenuity,
+                    name="bemDrone",
+                    rotor_diameter=0.76,
+                    chord=C_MEAN,
+                    N_blades=2,
+                    N_rotors=2,
+                    rpm=2800,
+                    N_batteries=48,
+                    payload_mass=0.0,
+                    aux_components_mass=1.0
+                )
+    # with starting point in this example drone instance, we can iterate over a c_tip array, to first generate a chord distributtion, and then generate a drone based on that
+    # We can use the tip chord length from the reference data as the shortest chord
+    C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
+
+
+    
+    
+    for chord in np.linspace(C_TIP, 0.2, 10):
+        blade = BladeDesign(drone=drone, planet=mars, c_tip=chord, no_blade_elements=NO_BLADE_ELEMENTS)
+        blade.compute_optimum_plan_form_and_twist()
+        blade.set_chord(blade.optimum_chord_distribution)
+        drone = DroneDesign(
+                    reference=ingenuity,
+                    name="bemDrone",
+                    rotor_diameter=0.76,
+                    chord=blade.chord,
+                    N_blades=2,
+                    N_rotors=2,
+                    rpm=2800,
+                    N_batteries=48,
+                    payload_mass=0.0,
+                    aux_components_mass=1.0
+                )
+        
+        drone.solve_mass_power(P_initial=ingenuity.hover_power, planet=mars)
+        
+        # We can use the tip chord length from the reference data to more accurately compute the chord distribution
+        C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
+        # print(f"Using tip chord length from NASA data for blade design: {C_TIP:.4f} m")
+
+        blade = BladeDesign(drone=drone, planet=mars, c_tip=C_TIP, no_blade_elements=NO_BLADE_ELEMENTS)
+        blade.compute_optimum_plan_form_and_twist()
+        blade.set_chord(blade.optimum_chord_distribution)
+        blade.set_twist(blade.theta_optimum_plan_form)
+        
+        print("\DESIGN BLADE NON-LINEAR W. DIMENSIONS\n")
+        drone.bem_master(blade, linear=False, dimensionless=False)
+        drone.print_bem_results()
+
+
+if do["bem"]:
+    print("\n ############ BEM THREE SEPERATE FUNCTIONS TEST ############\n")
+    drone = DroneDesign(
+                reference=ingenuity,
+                name="bemDrone",
+                rotor_diameter=0.76,
+                chord=0.055,
+                N_blades=2,
+                N_rotors=2,
+                rpm=2800,
+                N_batteries=48,
+                payload_mass=0.0,
+                aux_components_mass=1.0
+            )
+    
+    drone.solve_mass_power(P_initial=ingenuity.hover_power, planet=mars)
+    # load reference data from ingenuity nasa report for twist distribution and chord distribution    
+    blade_geometry_nasa = read_blade_geometry_nasa("data/ingenuity_nasa_blade_geometry.txt")
+    NO_BLADE_ELEMENTS = len(blade_geometry_nasa['y'])
+    # print(f"Number of blade elements based on NASA data: {NO_BLADE_ELEMENTS}")
+    
+    # TEST BEM ON INGENUITY
+    # print("\nTesting BEM on ingenuity reference design\n")
+    ref_blade = BladeDesign(drone=ingenuity, planet=mars, c_tip=C_MEAN, no_blade_elements=NO_BLADE_ELEMENTS)
+    ref_blade.set_chord(blade_geometry_nasa['chord'])
+    ref_blade.set_twist(blade_geometry_nasa['twist_deg'])
+    # print("We assume airfoil clf 5605 across the whole blade, even though its a simplification, since we cannot get cl/cd experimental for station 1,2,3,4 and xfoil fails at these low Reynolds numbers. We are afterall only using the last 80\% of the blade, and clf5605 is used from 40\% to 80\% anyways so its only 20\% of the rotor that has a different airfoil that we are simplifying compared to our own blade design.\n")
+    print("\INGENUITY NON-LINEAR W. DIMENSIONS\n")
+    ingenuity.bem(ref_blade)
+    ingenuity.print_bem_results()
+    # print(f"Induced velocity for reference blade: {ref_blade.v_i}")
+    
+    print("\INGENUITY LINEAR NON-DIMENSIONAL\n")
+    ingenuity.bem_linear(ref_blade)
+    ingenuity.print_bem_results()
+    
+    # We can use the tip chord length from the reference data to more accurately compute the chord distribution
+    C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
+    # print(f"Using tip chord length from NASA data for blade design: {C_TIP:.4f} m")
+
+    # print("computing twist and chord distribution for bemDrone (full bem)")
+    blade = BladeDesign(drone=drone, planet=mars, c_tip=C_TIP, no_blade_elements=NO_BLADE_ELEMENTS)
+    blade.compute_optimum_plan_form_and_twist()
+    blade.set_chord(blade.optimum_chord_distribution)
+    blade.set_twist(blade.theta_optimum_plan_form)
+    print("\DESIGN BLADE NON-LINEAR W. DIMENSIONS\n")
+    drone.bem(blade)
+    drone.print_bem_results()
+    # print(f"Induced velocity for design blade: {blade.v_i}")
+    
+    # print("computing twist and chord distribution for bemDrone (dimensionless)\n")
+    print("\DESIGN BLADE NON-LINEAR DIMENSIONLESS\n")
+    drone.bem_dimensionless(blade)
+    drone.print_bem_results()
+    # print(f"Induced velocity for design blade with dimensionless approach: {blade.v_i}")
+    
+    print("\DESIGN BLADE LINEAR NON-DIMENSIONAL\n")
+    drone.bem_linear(blade)
+    drone.print_bem_results()
+    # print(f"Induced velocity for design blade with linear approach: {blade.v_i}")
+
+if do["bem_master"]:
+    print("\n################### BEM MASTER ###################\n")
+    drone = DroneDesign(
+                reference=ingenuity,
+                name="bemDrone",
+                rotor_diameter=0.76,
+                chord=0.055,
+                N_blades=2,
+                N_rotors=2,
+                rpm=2800,
+                N_batteries=48,
+                payload_mass=0.0,
+                aux_components_mass=1.0
+            )
+    
+    drone.solve_mass_power(P_initial=ingenuity.hover_power, planet=mars)
+    # load reference data from ingenuity nasa report for twist distribution and chord distribution    
+    blade_geometry_nasa = read_blade_geometry_nasa("data/ingenuity_nasa_blade_geometry.txt")
+    NO_BLADE_ELEMENTS = len(blade_geometry_nasa['y'])
+    # print(f"Number of blade elements based on NASA data: {NO_BLADE_ELEMENTS}")
+    
+    # TEST BEM ON INGENUITY
+    ref_blade = BladeDesign(drone=ingenuity, planet=mars, c_tip=C_MEAN, no_blade_elements=NO_BLADE_ELEMENTS)
+    ref_blade.set_chord(blade_geometry_nasa['chord'])
+    ref_blade.set_twist(blade_geometry_nasa['twist_deg'])
+    # print("We assume airfoil clf 5605 across the whole blade, even though its a simplification, since we cannot get cl/cd experimental for station 1,2,3,4 and xfoil fails at these low Reynolds numbers. We are afterall only using the last 80\% of the blade, and clf5605 is used from 40\% to 80\% anyways so its only 20\% of the rotor that has a different airfoil that we are simplifying compared to our own blade design.\n")
+    print("\INGENUITY NON-LINEAR W. DIMENSIONS\n")
+    ingenuity.bem_master(ref_blade, linear=False, dimensionless=False)
+    ingenuity.print_bem_results()
+    # print(f"Induced velocity for reference blade: {ref_blade.v_i}")
+    
+    print("\INGENUITY LINEAR NON-DIMENSIONAL\n")
+    ingenuity.bem_master(ref_blade, linear=True, dimensionless=True)
+    ingenuity.print_bem_results()
+    
+    print("\INGENUITY NON-LINEAR DIMENSIONLESS\n")
+    ingenuity.bem_master(ref_blade, linear=False, dimensionless=True)
+    ingenuity.print_bem_results()
+    
+    # We can use the tip chord length from the reference data to more accurately compute the chord distribution
+    C_TIP = blade_geometry_nasa['chord'][-13]  # Assuming the first entry corresponds to the tip chord
+    # print(f"Using tip chord length from NASA data for blade design: {C_TIP:.4f} m")
 
     print("computing twist and chord distribution for bemDrone (full bem)")
-    blade = BladeDesign(drone=drone, planet=mars, c_tip=C_TIP)
+    blade = BladeDesign(drone=drone, planet=mars, c_tip=C_TIP, no_blade_elements=NO_BLADE_ELEMENTS)
     blade.compute_optimum_plan_form_and_twist()
-    blade.define_chord()
-    blade.define_twist()
-    drone.bem(blade)
+    blade.set_chord(blade.optimum_chord_distribution)
+    blade.set_twist(blade.theta_optimum_plan_form)
     
-    print(f"\nBEM results for bemDrone: Total Power = {drone.total_power_generation:.2f} W, Total Thrust = {drone.total_thrust_generation:.2f} N")
-    print(f"Required hover power from mass-power solver: {drone.hover_power:.2f} W, required thrust: {drone.total_thrust:.2f} N")
+    print("\DESIGN BLADE NON-LINEAR W. DIMENSIONS\n")
+    drone.bem_master(blade, linear=False, dimensionless=False)
+    drone.print_bem_results()
+    # print(f"Induced velocity for design blade: {blade.v_i}")
     
-    print("computing twist and chord distribution for bemDrone (dimensionless)")
-    drone.bem_dimensionless(blade)
+    print("\DESIGN BLADE LINEAR NON-DIMENSIONAL\n")
+    drone.bem_master(blade, linear=True, dimensionless=True)
+    drone.print_bem_results()
+    # print(f"Induced velocity for design blade with dimensionless approach: {blade.v_i}")
     
-    print(f"\nBEM results for bemDrone: Total Power = {drone.total_power_generation:.2f} W, Total Thrust = {drone.total_thrust_generation:.2f} N")
-    print(f"Required hover power from mass-power solver: {drone.hover_power:.2f} W, required thrust: {drone.total_thrust:.2f} N")
-    
+    print("\DESIGN BLADE NON-LINEAR DIMENSIONLESS\n")
+    drone.bem_master(blade, linear=False, dimensionless=True)
+    drone.print_bem_results()
+    # print(f"Induced velocity for design blade with linear approach: {blade.v_i}")
+
+
 if do["Q6"]:
     print("\nRunning Q6 and performing final analysis\n")
     
