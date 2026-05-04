@@ -356,10 +356,9 @@ def plot_q5_twist_subplots(blade_designs, blade_geometry_nasa, filename="plots/q
     plt.savefig(filename, dpi=200)
     plt.close()
 
-def plot_q5_chord_distribution(blade_designs, blade_geometry_nasa, filename="plots/q5_chord_distribution.png"):
+def plot_q5_chord_distribution(blade_design, blade_geometry_nasa, filename="plots/q5_chord_distribution.png"):
     plt.figure(figsize=(8, 5))
-    plt.plot(blade_designs[0].y, blade_designs[0].chord_distribution, marker='o', label="Blade Design, tip chord = {:.4f} m".format(blade_designs[0].chord_distribution[-1]))
-    # plt.plot(blade_designs[1].y, blade_designs[1].chord_distribution, marker='o', label="Quad Copter")
+    plt.plot(blade_design.y, blade_design.chord, marker='o', label="Blade Design, tip chord = {:.4f} m".format(blade_design.chord[-1]))
     plt.plot(blade_geometry_nasa['y'], blade_geometry_nasa['chord'], marker='x', label="NASA Reference")
     plt.title("Optimum chord distribution")
     plt.xlabel("Normalized Span (y)")
@@ -516,21 +515,21 @@ def plot_q5_master_loop_summary(best_designs, dual_designs, c_tip_array, filenam
     fig, ax = plt.subplots(2, 2, figsize=(13, 10))
 
     # Top-left: flight time vs rotor radius
-    ax[0, 0].plot(iter_x, iter_time, "o-", linewidth=1.5, markersize=4)
+    ax[0, 0].plot(iter_x, iter_time, "o", linewidth=1.5, markersize=4)
     ax[0, 0].set_title("Flight Time vs Rotor Radius")
     ax[0, 0].set_xlabel("Rotor Radius [m]")
     ax[0, 0].set_ylabel("Flight Time [min]")
     ax[0, 0].grid(True, alpha=0.3)
 
     # Bottom-left: hover power vs rotor radius
-    ax[1, 0].plot(iter_x, iter_power, "o-", linewidth=1.5, markersize=4, color="tab:orange")
+    ax[1, 0].plot(iter_x, iter_power, "o", linewidth=1.5, markersize=4, color="tab:orange")
     ax[1, 0].set_title("Hover Power vs Rotor Radius")
     ax[1, 0].set_xlabel("Rotor Radius [m]")
     ax[1, 0].set_ylabel("Hover Power [W]")
     ax[1, 0].grid(True, alpha=0.3)
 
     # Top-right: thrust vs tip chord
-    ax[0, 1].plot(c_tip_array, thrust_be, "o-", linewidth=1.5, markersize=4, label="BEM Thrust")
+    ax[0, 1].plot(c_tip_array, thrust_be, "o", linewidth=1.5, markersize=4, label="BEM Thrust")
     ax[0, 1].plot(c_tip_array, req_thrust, "r--", linewidth=1.2, label="Required Thrust")
     ax[0, 1].set_title("Thrust vs Tip Chord")
     ax[0, 1].set_xlabel("Tip Chord [m]")
@@ -539,7 +538,7 @@ def plot_q5_master_loop_summary(best_designs, dual_designs, c_tip_array, filenam
     ax[0, 1].legend()
 
     # Bottom-right: power vs tip chord
-    ax[1, 1].plot(c_tip_array, power_be, "o-", linewidth=1.5, markersize=4, label="BEM Power", color="tab:orange")
+    ax[1, 1].plot(c_tip_array, power_be, "o", linewidth=1.5, markersize=4, label="BEM Power", color="tab:orange")
     ax[1, 1].plot(c_tip_array, req_power, "r--", linewidth=1.2, label="Required Power")
     ax[1, 1].set_title("Power vs Tip Chord")
     ax[1, 1].set_xlabel("Tip Chord [m]")

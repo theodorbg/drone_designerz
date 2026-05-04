@@ -1,1 +1,3 @@
 # update iteration workflow from beginning to incoporate chord
+
+# look into chord sweep functions, might be broken. maybe i need to build them myself from scratch

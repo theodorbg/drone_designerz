@@ -236,7 +236,7 @@ class Drone:
         # flight time in seconds from battery capacity and hover power
         self.total_hover_time = self.total_battery_capacity / self.hover_power
     
-    def bem_master(self, blade, linear=False, dimensionless=False):
+    def bem(self, blade, linear=False, dimensionless=False):
         """
         Compute the BEM solution for the drone design, given a blade design and the planet properties.
         This is a simplified vectorized implementation of the BEM loop for hover, which requires the twist and chord distributions to be set in the blade design before calling.
