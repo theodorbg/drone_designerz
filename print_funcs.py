@@ -99,3 +99,22 @@ def print_q4_reynolds_latex(reynolds_results, reynolds_diffs):
     print("\\end{tabular}")
     print("\\end{table}")
     print("% -----------------------------------------------\n")
+
+def print_drone_stats(drone):
+    print(f"  Total thrust required for hover: {drone.total_thrust:.2f} N")
+    print(f"  Total power required for hover: {drone.hover_power:.2f} W")
+    #batteries
+    print(f"  Number of batteries: {drone.N_batteries}")
+    print(f"  battery mass: {drone.battery_mass:.2f} kg")
+    #all masses
+    print(f"  Rotor mass: {drone.rotor_mass:.2f} kg")
+    print(f"  Payload mass: {drone.payload_mass:.2f} kg")
+    print(f"  Auxiliary components mass: {drone.aux_components_mass:.2f} kg")
+    print(f"  Total mass: {drone.mass:.2f} kg")
+    # dimensions
+    print(f"  Rotor diameter: {drone.rotor_diameter:.2f} m")
+    print(f"  Chord length : {drone.chord} m")
+    print(f"  Number of blades: {drone.N_blades}")
+    print(f"  Number of rotors: {drone.N_rotors}")
+    #rpm
+    print(f"  RPM: {drone.rpm:.2f} rpm")

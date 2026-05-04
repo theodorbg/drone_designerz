@@ -22,14 +22,14 @@ def plot_big_grid_search(converged_drone_designs, N_blade_array, filename, fig_t
             c_radius = radius_colors.get(d.rotor_radius, 'gray')
 
             # Left column: vs rotor radius, colored by N_blades
-            ax[0, 0].scatter(d.rotor_radius, d.hover_power, color=c_blade)
-            ax[1, 0].scatter(d.rotor_radius, d.mass, color=c_blade)
-            ax[2, 0].scatter(d.rotor_radius, d.total_hover_time, color=c_blade)
+            ax[0, 0].plot(d.rotor_radius, d.hover_power, color=c_blade, linestyle='-', marker='o', markersize=4, linewidth=1.5)
+            ax[1, 0].plot(d.rotor_radius, d.mass, color=c_blade, linestyle='-', marker='o', markersize=4, linewidth=1.5)
+            ax[2, 0].plot(d.rotor_radius, d.total_hover_time, color=c_blade, linestyle='-', marker='o', markersize=4, linewidth=1.5)
 
             # Right column: vs number of blades, colored by radius
-            ax[0, 1].scatter(d.N_blades, d.hover_power, color=c_radius)
-            ax[1, 1].scatter(d.N_blades, d.mass, color=c_radius)
-            ax[2, 1].scatter(d.N_blades, d.total_hover_time, color=c_radius)
+            ax[0, 1].plot(d.N_blades, d.hover_power, color=c_radius, linestyle='-', marker='o', markersize=4, linewidth=1.5)
+            ax[1, 1].plot(d.N_blades, d.mass, color=c_radius, linestyle='-', marker='o', markersize=4, linewidth=1.5)
+            ax[2, 1].plot(d.N_blades, d.total_hover_time, color=c_radius, linestyle='-', marker='o', markersize=4, linewidth=1.5)
 
         # Axis labels and grid
         for col, xlabel in enumerate(['Rotor Radius [m]', 'Number of Blades']):
@@ -46,38 +46,123 @@ def plot_big_grid_search(converged_drone_designs, N_blade_array, filename, fig_t
             else:
                 ax[2, col].set_xticks(sorted(set(N_blade_array)))
 
-        # Legends
+        # Legends (left only)
         blade_handles = [
-            mpatches.Patch(color=blade_colors[n], label=f'{n} blades')
+            mpatches.Patch(color=blade_colors[n], label=f"{n} blades")
             for n in N_blade_array
         ]
 
-        radius_handles = [
-            mpatches.Patch(color=radius_colors[r], label=f'R={r:.2f} m')
-            for r in unique_radii
-        ]
-
-        legend_left = fig.legend(
+        fig.legend(
             handles=blade_handles,
-            loc='upper left',
+            loc="upper left",
             ncol=len(N_blade_array),
-            bbox_to_anchor=(0.08, 1.02),
+            bbox_to_anchor=(0.08, 1.0),
             frameon=True,
             fontsize=10,
         )
-        fig.legend(
-            handles=radius_handles,
-            loc='upper right',
-            ncol=min(5, len(unique_radii)),
-            bbox_to_anchor=(1.0, 1.035),
-            frameon=True,
-            fontsize=10
-        )
-        fig.add_artist(legend_left)
 
         plt.tight_layout()
         plt.savefig(filename.replace(".png", f"_{drone_name.replace(' ', '_')}.png"),
                     dpi=150, bbox_inches='tight')
+        plt.close()
+
+def plot_grid_search(converged_drone_designs, N_blade_array, filename, fig_title):
+    # Color map for left column: colored by number of blades
+    blade_colors = {n: c for n, c in zip(N_blade_array, ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'])}
+
+    # Color map for right column: colored by rotor radius
+    unique_radii = sorted(set(d.rotor_radius for d in converged_drone_designs if d is not None))
+    radius_cmap = plt.colormaps['tab10'].resampled(max(len(unique_radii), 1))
+    radius_colors = {r: radius_cmap(i) for i, r in enumerate(unique_radii)}
+
+    metrics = [
+        ("hover_power", "Hover Power [W]"),
+        ("mass", "Total Mass [kg]"),
+        ("total_hover_time", "Flight Time [s]"),
+    ]
+
+    for drone_name in ["Dual Copter", "Quad Copter"]:
+        fig, ax = plt.subplots(3, 2, figsize=(14, 12))
+        fig.suptitle(f"{fig_title} — {drone_name}", fontsize=14, fontweight="bold", y=1.02)
+
+        subset = [d for d in converged_drone_designs if d is not None and d.name == drone_name]
+
+        # LEFT COLUMN: x = rotor_radius, one curve per N_blades
+        for n_blades in N_blade_array:
+            series = sorted(
+                [d for d in subset if d.N_blades == n_blades],
+                key=lambda d: d.rotor_radius
+            )
+            if not series:
+                continue
+
+            x = np.array([d.rotor_radius for d in series], dtype=float)
+            color = blade_colors.get(n_blades, "gray")
+
+            for row, (attr, _) in enumerate(metrics):
+                y = np.array([getattr(d, attr) for d in series], dtype=float)
+                ax[row, 0].plot(
+                    x, y,
+                    marker="o", linestyle="-", linewidth=1.5, markersize=4,
+                    color=color
+                )
+
+        # RIGHT COLUMN: x = N_blades, one curve per rotor_radius
+        for r in unique_radii:
+            series = sorted(
+                [d for d in subset if d.rotor_radius == r],
+                key=lambda d: d.N_blades
+            )
+            if not series:
+                continue
+
+            x = np.array([d.N_blades for d in series], dtype=float)
+            color = radius_colors.get(r, "gray")
+
+            for row, (attr, _) in enumerate(metrics):
+                y = np.array([getattr(d, attr) for d in series], dtype=float)
+                ax[row, 1].plot(
+                    x, y,
+                    marker="o", linestyle="None", markersize=4,
+                    color=color
+                )
+
+        # Axis labels and grid
+        for row, (_, ylabel) in enumerate(metrics):
+            ax[row, 0].set_ylabel(ylabel)
+            ax[row, 0].grid(True, alpha=0.3)
+            ax[row, 1].grid(True, alpha=0.3)
+
+        ax[2, 0].set_xlabel("Rotor Radius [m]")
+        ax[2, 1].set_xlabel("Number of Blades")
+        ax[0, 0].set_title("vs Rotor Radius (color = # blades)")
+        ax[0, 1].set_title("vs Number of Blades (color = radius)")
+
+        if unique_radii:
+            ax[2, 0].set_xticks(np.linspace(min(unique_radii), max(unique_radii), min(10, len(unique_radii))))
+        ax[2, 1].set_xticks(sorted(set(N_blade_array)))
+
+        # Legends (left only)
+        blade_handles = [
+            mpatches.Patch(color=blade_colors[n], label=f"{n} blades")
+            for n in N_blade_array
+        ]
+
+        fig.legend(
+            handles=blade_handles,
+            loc="upper left",
+            ncol=len(N_blade_array),
+            bbox_to_anchor=(0.08, 1.0),
+            frameon=True,
+            fontsize=10,
+        )
+
+        plt.tight_layout()
+        plt.savefig(
+            filename.replace(".png", f"_{drone_name.replace(' ', '_')}.png"),
+            dpi=150,
+            bbox_inches="tight"
+        )
         plt.close()
 
 def plot_narrow_grid_search(converged_drone_designs, filename, fig_title):
@@ -129,41 +214,53 @@ def plot_narrow_grid_search(converged_drone_designs, filename, fig_title):
     plt.savefig(filename, dpi=150, bbox_inches='tight')
     plt.close()
 
-def plot_weight_distribution_pie(design, filename, title=None):
+def plot_weight_distribution_pie(designs, filename, titles=None):
     """
-    Plot a pie chart of mass distribution for a design.
-    Assumes the DroneDesign object has all required attributes.
+    Plot mass distribution pie charts side by side for one or more designs.
     """
-    parts = {
-        "Payload": float(design.payload_mass),
-        "Battery Pack": float(design.battery_mass),
-        "Rotors": float(design.rotor_mass),
-        "Propulsion and control motors": float(design.motor_mass),
-        "Fuselage": float(design.fuselage_mass),
-        "Computer and other components": float(design.aux_components_mass),
-    }
+    if not isinstance(designs, (list, tuple)):
+        designs = [designs]
 
-    total_mass = float(design.mass)
-    known_mass = sum(v for v in parts.values() if v > 0)
-    other = max(total_mass - known_mass, 0.0)
-    if other > 1e-9:
-        parts["Other structure"] = other
+    n = len(designs)
+    if titles is None:
+        titles = [f"Weight Distribution — {d.name}" for d in designs]
 
-    labels = [k for k, v in parts.items() if v > 1e-9]
-    values = [v for v in parts.values() if v > 1e-9]
+    fig, axes = plt.subplots(1, n, figsize=(6 * n, 6))
+    if n == 1:
+        axes = [axes]
 
-    if len(values) == 0:
-        print(f"No positive mass components found for {design.name}.")
-        return
+    for ax, design, title in zip(axes, designs, titles):
+        parts = {
+            "Payload": float(design.payload_mass),
+            "Battery Pack": float(design.battery_mass),
+            "Rotors": float(design.rotor_mass),
+            "Propulsion and control motors": float(design.motor_mass),
+            "Fuselage": float(design.fuselage_mass),
+            "Computer and other components": float(design.aux_components_mass),
+        }
 
-    plt.figure(figsize=(6, 6))
-    plt.pie(values, labels=labels, autopct="%1.1f%%", startangle=90)
-    plt.axis("equal")
-    plt.title(title or f"Weight Distribution — {design.name}")
+        total_mass = float(design.mass)
+        known_mass = sum(v for v in parts.values() if v > 0)
+        other = max(total_mass - known_mass, 0.0)
+        if other > 1e-9:
+            parts["Other structure"] = other
+
+        labels = [k for k, v in parts.items() if v > 1e-9]
+        values = [v for v in parts.values() if v > 1e-9]
+
+        if len(values) == 0:
+            ax.set_title(f"No positive mass components for {design.name}")
+            ax.axis("off")
+            continue
+
+        ax.pie(values, labels=labels, autopct="%1.1f%%", startangle=90)
+        ax.set_aspect("equal")
+        ax.set_title(title)
+
     plt.tight_layout()
-    plt.savefig(filename, dpi=200)
+    plt.savefig(filename, dpi=200, bbox_inches="tight")
     plt.close()
-
+    
 def plot_q3_battery_sweep(results, N_batt_max_2kg, filename="plots/q3_flight_time_vs_N_batteries.png"):
     """Plot flight time vs total batteries and mark unconstrained/constrained optima."""
     plt.figure(figsize=(10, 5))
@@ -315,4 +412,142 @@ def plot_q5_bem_chord_sweep(drone_designs, c_tip_array, thrust_margin, power_mar
     plt.tight_layout()
     plt.savefig(filename, dpi=150)
     plt.close()
+
+def plot_q5_bem_chord_sweep_double(dual_designs, quad_designs, c_tip_array, thrust_margin, power_margin, filename="plots/q5_bem_chord_sweep_double.png"):
+    """
+    Plot BEM thrust/power for dual and quad copters side by side.
     
+    dual_designs, quad_designs: lists of DroneDesign objects (one per c_tip)
+    c_tip_array: array of tip chord values
+    """
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharex="col")
+
+    for col, (designs, drone_name) in enumerate([(dual_designs, "Dual Copter"), (quad_designs, "Quad Copter")]):
+        thrust_be = [d.total_thrust_generation for d in designs]
+        power_be = [d.total_power_generation for d in designs]
+        req_thrust = [d.total_thrust for d in designs]
+        req_power = [d.hover_power for d in designs]
+        thrust_margins = [t * (1 + thrust_margin) for t in req_thrust]
+        power_margins = [p * (1 + power_margin) for p in req_power]
+
+        ax_thrust = axes[0, col]
+        ax_power = axes[1, col]
+
+        ax_thrust.plot(c_tip_array, thrust_be, 'o-', label='BEM Thrust', color='tab:blue')
+        ax_thrust.plot(c_tip_array, req_thrust, 'r--', label='Required Thrust')
+        ax_thrust.plot(c_tip_array, thrust_margins, 'g--', label='Thrust Margin')
+        ax_thrust.set_ylabel("Thrust (N)")
+        ax_thrust.set_title(f"{drone_name} - Thrust")
+        ax_thrust.legend()
+        ax_thrust.grid(True, linestyle='--', alpha=0.5)
+
+        ax_power.plot(c_tip_array, power_be, 'o-', color='tab:orange', label='BEM Power')
+        ax_power.plot(c_tip_array, req_power, 'r--', label='Required Power')
+        ax_power.plot(c_tip_array, power_margins, 'g--', label='Power Margin')
+        ax_power.set_ylabel("Power (W)")
+        ax_power.set_xlabel("Tip Chord (m)")
+        ax_power.set_title(f"{drone_name} - Power")
+        ax_power.legend()
+        ax_power.grid(True, linestyle='--', alpha=0.5)
+
+    fig.suptitle("BEM Output vs Tip Chord (optimum twist/chord design)")
+    plt.tight_layout()
+    plt.savefig(filename, dpi=150)
+    plt.close()
+
+
+def plot_q5_dCT_dP_distribution(dual_blade, quad_blade, filename="plots/q5_dCT_dP_distribution.png"):
+    """
+    Plot dCT and dP distributions vs non-dimensional radius for dual and quad copter blades.
+    
+    2x2 layout: thrust (top), power (bottom); dual (left), quad (right)
+    
+    Assumes blade objects have:
+    - y: non-dimensional radius (0 to 1)
+    - dCT: thrust coefficient distribution
+    - dPower: power distribution
+    """
+    import matplotlib.pyplot as plt
+    
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharex="col")
+    
+    blades = [dual_blade, quad_blade]
+    names = ["Dual Copter", "Quad Copter"]
+    
+    for col, (blade, name) in enumerate(zip(blades, names)):
+        # Top row: dCT
+        ax_thrust = axes[0, col]
+        ax_thrust.plot(blade.y, blade.dC_T, 'o-', color='tab:blue', linewidth=1.5, markersize=4)
+        ax_thrust.set_ylabel("dCT")
+        ax_thrust.set_title(f"{name} — Thrust Coefficient Distribution")
+        ax_thrust.grid(True, alpha=0.3)
+        
+        # Bottom row: dPower
+        ax_power = axes[1, col]
+        ax_power.plot(blade.y, blade.dPower, 'o-', color='tab:orange', linewidth=1.5, markersize=4)
+        ax_power.set_ylabel("dP (W)")
+        ax_power.set_xlabel("Non-dimensional Radius (r/R)")
+        ax_power.set_title(f"{name} — Power Distribution")
+        ax_power.grid(True, alpha=0.3)
+    
+    fig.suptitle("Blade Element Distributions (dCT and dP vs r/R)", fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    plt.savefig(filename, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def plot_q5_master_loop_summary(best_designs, dual_designs, c_tip_array, filename="plots/q5_master_loop_summary.png"):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    # Iteration history from the master loop
+    iter_x = [d.rotor_radius for d in best_designs if d is not None]
+    iter_time = [d.total_hover_time / 60.0 for d in best_designs if d is not None]
+    iter_power = [d.hover_power for d in best_designs if d is not None]
+
+    # Final Q5 sweep data
+    thrust_be = [d.total_thrust_generation for d in dual_designs]
+    power_be = [d.total_power_generation for d in dual_designs]
+    req_thrust = [d.total_thrust for d in dual_designs]
+    req_power = [d.hover_power for d in dual_designs]
+
+    fig, ax = plt.subplots(2, 2, figsize=(13, 10))
+
+    # Top-left: flight time vs rotor radius
+    ax[0, 0].plot(iter_x, iter_time, "o-", linewidth=1.5, markersize=4)
+    ax[0, 0].set_title("Flight Time vs Rotor Radius")
+    ax[0, 0].set_xlabel("Rotor Radius [m]")
+    ax[0, 0].set_ylabel("Flight Time [min]")
+    ax[0, 0].grid(True, alpha=0.3)
+
+    # Bottom-left: hover power vs rotor radius
+    ax[1, 0].plot(iter_x, iter_power, "o-", linewidth=1.5, markersize=4, color="tab:orange")
+    ax[1, 0].set_title("Hover Power vs Rotor Radius")
+    ax[1, 0].set_xlabel("Rotor Radius [m]")
+    ax[1, 0].set_ylabel("Hover Power [W]")
+    ax[1, 0].grid(True, alpha=0.3)
+
+    # Top-right: thrust vs tip chord
+    ax[0, 1].plot(c_tip_array, thrust_be, "o-", linewidth=1.5, markersize=4, label="BEM Thrust")
+    ax[0, 1].plot(c_tip_array, req_thrust, "r--", linewidth=1.2, label="Required Thrust")
+    ax[0, 1].set_title("Thrust vs Tip Chord")
+    ax[0, 1].set_xlabel("Tip Chord [m]")
+    ax[0, 1].set_ylabel("Thrust [N]")
+    ax[0, 1].grid(True, alpha=0.3)
+    ax[0, 1].legend()
+
+    # Bottom-right: power vs tip chord
+    ax[1, 1].plot(c_tip_array, power_be, "o-", linewidth=1.5, markersize=4, label="BEM Power", color="tab:orange")
+    ax[1, 1].plot(c_tip_array, req_power, "r--", linewidth=1.2, label="Required Power")
+    ax[1, 1].set_title("Power vs Tip Chord")
+    ax[1, 1].set_xlabel("Tip Chord [m]")
+    ax[1, 1].set_ylabel("Power [W]")
+    ax[1, 1].grid(True, alpha=0.3)
+    ax[1, 1].legend()
+
+    fig.suptitle("Master Loop Summary", fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    plt.savefig(filename, dpi=150, bbox_inches="tight")
+    plt.close()

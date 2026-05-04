@@ -461,7 +461,7 @@ class DroneDesign(Drone):
             
             # Check for non-finite results to avoid infinite loops                
             if not np.isfinite(P_new) or not np.isfinite(self.mass):
-                print(f"Warning: non-finite result for {self.name} at iteration {i+1}.")
+                # print(f"Warning: non-finite result for {self.name} at iteration {i+1}.")
                 return None
 
             
