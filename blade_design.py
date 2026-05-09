@@ -1,5 +1,6 @@
 import numpy as np
 from numpy import pi, cos, sin, sqrt
+import pandas as pd
 
 from parse_txt_funcs import(read_polar_txt,
                            read_blade_geometry_nasa,
@@ -11,10 +12,19 @@ class BladeDesign:
         
         self.polar = read_polar_txt(polar_data)
         
-        self.Cl = self.polar["Cl"]
-        self.Cd = self.polar["Cd"]
-        self.aoa_deg = self.polar["alpha"]  
-        self.aoa_rad = np.radians(self.aoa_deg)
+        if self.polar is not None:
+            self.Cl = self.polar["Cl"]
+            self.Cd = self.polar["Cd"]
+            self.aoa_deg = self.polar["alpha"]
+            self.aoa_rad = np.radians(self.aoa_deg)
+            self.alpha_0_rad, self.Cl_alpha = self.alpha_from_cl(0.0, self.Cl, self.aoa_deg, n_fit=len(self.Cl))
+        else:
+            self.Cl = None
+            self.Cd = None
+            self.aoa_deg = None
+            self.aoa_rad = None
+            self.alpha_0_rad = None
+            self.Cl_alpha = None
         
         self.R = drone.rotor_radius
         self.A = pi * self.R**2
@@ -31,7 +41,7 @@ class BladeDesign:
         self.y = self.r / self.R  # Normalized radius
         # interp Cl vs aoa to find alpha0 (zero lift angle) and Cl_alpha (slope of Cl vs aoa)
         # the slope of the lift curve, denoted as Cl_alpha, is measured at the zero lift angle of attack. 
-        self.alpha_0_rad, self.Cl_alpha = self.alpha_from_cl(0.0, self.Cl, self.aoa_deg, n_fit=len(self.Cl))
+        # self.alpha_0_rad, self.Cl_alpha = self.alpha_from_cl(0.0, self.Cl, self.aoa_deg, n_fit=len(self.Cl))
         self.solidity = drone.solidity
         
         self.mass = drone.mass
@@ -321,3 +331,88 @@ class BladeDesign:
         self.dPower = 0.5 * Nb * omega * rho * c * vrel**2 * (cl * np.sin(phi) + cd * np.cos(phi)) * r * dr
 
         return self
+
+class WingDesign(BladeDesign):
+    def __init__(self, drone, planet, c_tip, polar_data: str):
+        # Call parent init but avoid loading polar twice
+        # Temporarily pass None to skip read_polar_txt in parent
+        super().__init__(drone, planet, c_tip, polar_data=None)
+        
+        # Now load polar using WingDesign's own method
+        self.polar = self.xfoil_polar_txt_to_dataframe(polar_data)
+        
+        # Re-extract Cl, Cd, alpha from the newly loaded polar
+        self.Cl = self.polar["Cl"]
+        self.Cd = self.polar["Cd"]
+        self.aoa_deg = self.polar["alpha"]
+        self.aoa_rad = np.radians(self.aoa_deg)
+
+        self.wing_chord = c_tip
+        WING_DENSITY = 74 # kg/m^3
+        self.wingspan = drone.wingspan
+        self.tc = 9/100
+        self.camber = 6/10
+    
+    def compute_wing_mass(self):
+        """
+        Wing mass = volume * density
+        Volume = airfoil_area * wingspan
+        Airfoil area approximated as: 0.6 * t/c * c^2  (standard flat-back approximation)
+        """
+        
+        airfoil_area = self.camber * self.tc * self.wing_chord**2   # [m²]
+        volume = airfoil_area * self.wingspan                  # [m³]
+        self.wing_weight = self.WING_DENSITY * volume * self.drone.planet.g  # [N]
+        self.wing_mass   = self.WING_DENSITY * volume          # [kg]
+        return self
+    
+    def compute_wing_lift_drag(self, V_forward: float, planet: "Planet", polar: pd.DataFrame):
+        aoa_deg, _ = self.find_design_aoa()   # peak CL/CD from wing polar
+
+        cl = np.interp(aoa_deg, self.aoa_deg, self.Cl)
+        cd = np.interp(aoa_deg, self.aoa_deg, self.Cd)
+        S = self.wingspan * self.wing_chord
+        
+        
+        self.lift = 0.5 * planet.rho * V_forward**2 * cl * S
+        self.drag = 0.5 * planet.rho * V_forward**2 * cd * S
+        self.wing_aoa_deg = aoa_deg
+        self.wing_aoa_rad = np.radians(aoa_deg)
+        return self
+    
+    def xfoil_polar_txt_to_dataframe(self, filepath: str) -> pd.DataFrame:
+        rows = []
+        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+
+        data_started = False
+
+        for line in lines:
+            s = line.strip()
+
+            if not data_started:
+                if s.lower().startswith("alpha") and "cl" in s.lower():
+                    data_started = True
+                continue
+
+            if not s or s.startswith("-"):
+                continue
+
+            parts = s.split()
+            if len(parts) < 7:
+                continue
+
+            try:
+                rows.append({
+                    "alpha": float(parts[0]),
+                    "Cl": float(parts[1]),
+                    "Cd": float(parts[2]),
+                    "CDp": float(parts[3]),
+                    "CM": float(parts[4]),
+                    "Top_Xtr": float(parts[5]),
+                    "Bot_Xtr": float(parts[6]),
+                })
+            except ValueError:
+                continue
+
+        return pd.DataFrame(rows)

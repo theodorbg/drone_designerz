@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
-import numpy as np
 import matplotlib.patches as mpatches
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
+import numpy as np
 
 def plot_big_grid_search(converged_drone_designs, N_blade_array, filename, fig_title):
     # Color map for left column: colored by number of blades
@@ -65,6 +67,7 @@ def plot_big_grid_search(converged_drone_designs, N_blade_array, filename, fig_t
         plt.savefig(filename.replace(".png", f"_{drone_name.replace(' ', '_')}.png"),
                     dpi=150, bbox_inches='tight')
         plt.close()
+
 
 def plot_grid_search(converged_drone_designs, N_blade_array, filename, fig_title):
     # Color map for left column: colored by number of blades
@@ -331,6 +334,28 @@ def plot_q4_polars_side_by_side(polars, filename="plots/q4_polars_side_by_side.p
     plt.savefig(filename, dpi=200)
     plt.close()
 
+def plot_q5_twist(blade_design, blade_geometry_nasa, title="Dual Copter", filename="plots/q5_twist_distributions.png"):
+    fig, ax = plt.subplots(figsize=(7, 5))
+
+    y = blade_design.y
+
+    ax.plot(y, blade_design.no_twist,                  marker="o", label="No twist")
+    ax.plot(y, blade_design.linear_twist,              marker="o", label="Linear twist")
+    ax.plot(y, blade_design.optimum_twist,             marker="o", label="Optimum twist")
+    ax.plot(y, blade_design.theta_optimum_plan_form,   marker="o", label="Optimum planform + twist")
+    ax.plot(blade_geometry_nasa['y'], blade_geometry_nasa['twist_deg'],
+            marker='x', linestyle='--', label="NASA Reference")
+
+    ax.set_title(title)
+    ax.set_xlabel("Normalized Span (y)")
+    ax.set_ylabel("Twist Angle (degrees)")
+    ax.legend()
+    ax.grid(True)
+
+    plt.tight_layout()
+    plt.savefig(filename, dpi=200)
+    plt.close()
+
 def plot_q5_twist_subplots(blade_designs, blade_geometry_nasa, filename="plots/q5_twist_distributions.png"):
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
 
@@ -457,7 +482,7 @@ def plot_q5_bem_chord_sweep_double(dual_designs, quad_designs, c_tip_array, thru
     plt.close()
 
 
-def plot_q5_dCT_dP_distribution(dual_blade, quad_blade, filename="plots/q5_dCT_dP_distribution.png"):
+def plot_q5_dCT_dP_distribution_1x2(dual_blade, quad_blade, filename="plots/q5_dCT_dP_distribution.png"):
     """
     Plot dCT and dP distributions vs non-dimensional radius for dual and quad copter blades.
     
@@ -496,6 +521,160 @@ def plot_q5_dCT_dP_distribution(dual_blade, quad_blade, filename="plots/q5_dCT_d
     plt.savefig(filename, dpi=150, bbox_inches="tight")
     plt.close()
 
+def plot_q5_dCT_dP_distribution(blade, title="Dual Copter", filename="plots/q5_dCT_dP_distribution.png"):
+    fig, axes = plt.subplots(2, 1, figsize=(7, 8), sharex=True)
+
+    axes[0].plot(blade.y, blade.dC_T, 'o-', color='tab:blue', linewidth=1.5, markersize=4)
+    axes[0].set_ylabel("dCT")
+    axes[0].set_title(f"{title} — Thrust Coefficient Distribution")
+    axes[0].grid(True, alpha=0.3)
+
+    axes[1].plot(blade.y, blade.dPower, 'o-', color='tab:orange', linewidth=1.5, markersize=4)
+    axes[1].set_ylabel("dP (W)")
+    axes[1].set_xlabel("Non-dimensional Radius (r/R)")
+    axes[1].set_title(f"{title} — Power Distribution")
+    axes[1].grid(True, alpha=0.3)
+
+    fig.suptitle("Blade Element Distributions (dCT and dP vs r/R)", fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    plt.savefig(filename, dpi=150, bbox_inches="tight")
+    plt.close()
+
+def plot_q5_dCT_dP_distribution_comparison(blades: list, labels: list[str], title="Dual Copter", filename="plots/q5_dCT_dP_distribution.png"):
+    fig, axes = plt.subplots(2, 1, figsize=(7, 8), sharex=True)
+
+    for blade, label in zip(blades, labels):
+        axes[0].plot(blade.y, blade.dC_T,   'o-', linewidth=1.5, markersize=4, label=label)
+        axes[1].plot(blade.y, blade.dPower,  'o-', linewidth=1.5, markersize=4, label=label)
+
+    axes[0].set_ylabel("dCT")
+    axes[0].set_title(f"{title} — Thrust Coefficient Distribution")
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+
+    axes[1].set_ylabel("dP (W)")
+    axes[1].set_xlabel("Non-dimensional Radius (r/R)")
+    axes[1].set_title(f"{title} — Power Distribution")
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+
+    fig.suptitle("Blade Element Distributions (dCT and dP vs r/R)", fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    plt.savefig(filename, dpi=150, bbox_inches="tight")
+    plt.close()
+
+def plot_master_loop_2x2(designs, filename: str = "plots/master_loop_analysis_2x2.png"):
+
+    radii_arr = np.array([d.radius for d in designs])
+    cmean_arr = np.array([d.c_mean for d in designs])
+    AR_arr    = np.array([d.aspect_ratio for d in designs])
+    T_gen_arr = np.array([d.total_thrust_generation for d in designs])
+    T_req_arr = np.array([d.total_thrust_required for d in designs])
+    P_gen_arr = np.array([d.total_power_generation for d in designs])
+    P_req_arr = np.array([d.total_power_required for d in designs])
+
+    norm = mcolors.Normalize(vmin=AR_arr.min(), vmax=AR_arr.max())
+    cmap = cm.plasma
+
+    fig, axes = plt.subplots(2, 2, figsize=(13, 9))
+    fig.subplots_adjust(right=0.82, wspace=0.28, hspace=0.35)
+
+    # (ax, x_arr, x_label, y_gen_arr, y_req_arr, y_label, title)
+    panels = [
+        (axes[0, 0], radii_arr, "Rotor Radius R (m)",         T_gen_arr, T_req_arr, "Thrust (N)",  "Thrust vs Radius"),
+        (axes[0, 1], cmean_arr, r"Mean Chord $\bar{c}$ (m)",  T_gen_arr, T_req_arr, "Thrust (N)",  "Thrust vs Mean Chord"),
+        (axes[1, 0], radii_arr, "Rotor Radius R (m)",         P_gen_arr, P_req_arr, "Power (W)",   "Power vs Radius"),
+        (axes[1, 1], cmean_arr, r"Mean Chord $\bar{c}$ (m)",  P_gen_arr, P_req_arr, "Power (W)",   "Power vs Mean Chord"),
+    ]
+
+    for ax, x_arr, xlabel, y_gen_arr, y_req_arr, ylabel, title in panels:
+        ax.scatter(x_arr, y_gen_arr, c=AR_arr, cmap=cmap, norm=norm,
+                   s=50, alpha=0.8, edgecolors='white', linewidths=0.3, zorder=3,
+                   label="Generated")
+        ax.scatter(x_arr, y_req_arr,
+                   s=30, marker='x', color='crimson', alpha=0.7, zorder=4,
+                   label="Required")
+        ax.set_xlabel(xlabel, fontsize=12)
+        ax.set_ylabel(ylabel, fontsize=12)
+        ax.set_title(title, fontsize=13, fontweight='bold')
+        ax.legend(fontsize=10)
+        ax.grid(True, alpha=0.25)
+
+    # shared colorbar
+    cbar_ax = fig.add_axes([0.84, 0.12, 0.022, 0.72])
+    sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cb = fig.colorbar(sm, cax=cbar_ax)
+    cb.set_label(r"Aspect Ratio  AR = R / $\bar{c}$", fontsize=11)
+    cb.ax.tick_params(labelsize=10)
+
+    fig.suptitle("Master Loop — Thrust & Power Design Space", fontsize=14, fontweight='bold', y=1.01)
+
+    plt.savefig(filename, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {filename}")
+
+def plot_master_loop_3x2(designs, main_title: str, filename: str = "plots/master_loop_analysis_3x2.png"):
+
+    radii_arr   = np.array([d.radius         for d in designs])
+    cmean_arr   = np.array([d.c_mean          for d in designs])
+    AR_arr      = np.array([d.aspect_ratio    for d in designs])
+    T_gen_arr   = np.array([d.total_thrust_generation for d in designs])
+    T_req_arr   = np.array([d.total_thrust_required   for d in designs])
+    P_gen_arr   = np.array([d.total_power_generation  for d in designs])
+    P_req_arr   = np.array([d.total_power_required    for d in designs])
+    ft_arr      = np.array([d.flight_time     for d in designs])
+    N_batt_arr  = np.array([d.N_batteries     for d in designs])
+
+    norm = mcolors.Normalize(vmin=AR_arr.min(), vmax=AR_arr.max())
+    cmap = cm.plasma
+
+    fig, axes = plt.subplots(3, 2, figsize=(13, 13))
+    fig.subplots_adjust(right=0.82, wspace=0.28, hspace=0.38)
+
+    # (ax, x_arr, xlabel, y_gen, y_req, ylabel, title)
+    panels = [
+        # row 1 — thrust
+        (axes[0, 0], radii_arr, "Rotor Radius R (m)",        T_gen_arr, T_req_arr, "Thrust (N)",       "Thrust vs Radius"),
+        (axes[0, 1], cmean_arr, r"Mean Chord $\bar{c}$ (m)", T_gen_arr, T_req_arr, "Thrust (N)",       "Thrust vs Mean Chord"),
+        # row 2 — power
+        (axes[1, 0], radii_arr, "Rotor Radius R (m)",        P_gen_arr, P_req_arr, "Power (W)",        "Power vs Radius"),
+        (axes[1, 1], cmean_arr, r"Mean Chord $\bar{c}$ (m)", P_gen_arr, P_req_arr, "Power (W)",        "Power vs Mean Chord"),
+        # row 3 — flight time (no required line, colour still AR)
+        (axes[2, 0], radii_arr, "Rotor Radius R (m)",        ft_arr,    None,      "Flight Time (s)",  "Flight Time vs Radius"),
+        (axes[2, 1], cmean_arr, r"Mean Chord $\bar{c}$ (m)", ft_arr,    None,      "Flight Time (s)",  "Flight Time vs Mean Chord"),
+    ]
+
+    for ax, x_arr, xlabel, y_gen_arr, y_req_arr, ylabel, title in panels:
+        sc = ax.scatter(x_arr, y_gen_arr, c=AR_arr, cmap=cmap, norm=norm,
+                        s=50, alpha=0.8, edgecolors='white', linewidths=0.3, zorder=3,
+                        label="Generated")
+
+        if y_req_arr is not None:
+            ax.scatter(x_arr, y_req_arr,
+                       s=30, marker='x', color='crimson', alpha=0.7, zorder=4,
+                       label="Required")
+            ax.legend(fontsize=10)
+
+        ax.set_xlabel(xlabel, fontsize=12)
+        ax.set_ylabel(ylabel, fontsize=12)
+        ax.set_title(title, fontsize=13, fontweight='bold')
+        ax.grid(True, alpha=0.25)
+
+    # shared colorbar for AR
+    cbar_ax = fig.add_axes([0.84, 0.12, 0.022, 0.72])
+    sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cb = fig.colorbar(sm, cax=cbar_ax)
+    cb.set_label(r"Aspect Ratio  AR = R / $\bar{c}$", fontsize=11)
+    cb.ax.tick_params(labelsize=10)
+
+    fig.suptitle(f"{main_title} — Thrust, Power & Flight Time",
+                 fontsize=14, fontweight='bold', y=1.01)
+
+    plt.savefig(filename, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {filename}")
 
 def plot_q5_master_loop_summary(best_designs, dual_designs, c_tip_array, filename="plots/q5_master_loop_summary.png"):
     import matplotlib.pyplot as plt
