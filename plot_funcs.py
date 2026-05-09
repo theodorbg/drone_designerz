@@ -676,6 +676,86 @@ def plot_master_loop_3x2(designs, main_title: str, filename: str = "plots/master
     plt.close()
     print(f"Saved: {filename}")
 
+def plot_q6_wingspan_sweep(wingspan_array, powers, weights, V_forward,
+                           filename="plots/q6_wingspan_sweep.png"):
+    powers  = np.array(powers)
+    weights = np.array(weights)
+
+    # Find optimum
+    opt_idx      = np.argmin(powers)
+    opt_wingspan = wingspan_array[opt_idx]
+    opt_power    = powers[opt_idx]
+    opt_weight   = weights[opt_idx]
+
+    # Baseline (no wings, b=0)
+    baseline_power = powers[0]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+    # --- Power vs wingspan ---
+    ax1.plot(wingspan_array, powers, color="tab:blue", linewidth=2)
+    ax1.axhline(baseline_power, color="gray", linestyle="--", linewidth=1,
+                label=f"No-wing baseline ({baseline_power:.1f} W)")
+    ax1.axvline(opt_wingspan, color="tab:red", linestyle=":", linewidth=1.5,
+                label=f"Optimum b = {opt_wingspan:.2f} m ({opt_power:.1f} W)")
+    ax1.scatter([opt_wingspan], [opt_power], color="tab:red", zorder=5)
+    ax1.set_xlabel("Wingspan $b$ [m]")
+    ax1.set_ylabel("Total power [W]")
+    ax1.set_title(f"Forward flight power vs. wingspan ($V$ = {V_forward} m/s)")
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+
+    # --- Weight vs wingspan ---
+    ax2.plot(wingspan_array, weights, color="tab:green", linewidth=2)
+    ax2.axvline(opt_wingspan, color="tab:red", linestyle=":", linewidth=1.5,
+                label=f"Optimum b = {opt_wingspan:.2f} m ({opt_weight:.2f} kg)")
+    ax2.scatter([opt_wingspan], [opt_weight], color="tab:red", zorder=5)
+    ax2.set_xlabel("Wingspan $b$ [m]")
+    ax2.set_ylabel("Total aircraft mass [kg]")
+    ax2.set_title("Aircraft mass vs. wingspan")
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(filename, dpi=150)
+    plt.close()
+
+    print(f"Optimal wingspan: {opt_wingspan:.3f} m")
+    print(f"Power at optimum: {opt_power:.2f} W  (baseline: {baseline_power:.2f} W, "
+          f"reduction: {(baseline_power - opt_power)/baseline_power*100:.1f}%)")
+    print(f"Mass at optimum:  {opt_weight:.3f} kg")
+
+def plot_q6_forward_flight(V_array, powers, betas, filename="plots/q6_forward_flight.png"):
+        """
+        Plot total power and rotor tilt angle vs forward flight speed.
+        No-wing baseline case.
+        """
+        betas_deg = np.degrees(betas)
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+        # --- Power vs speed ---
+        ax1.plot(V_array, powers, color="tab:blue", linewidth=2)
+        ax1.axvline(x=10, color="gray", linestyle="--", linewidth=1, label="Design point (10 m/s)")
+        ax1.set_xlabel("Forward speed [m/s]")
+        ax1.set_ylabel("Total power [W]")
+        ax1.set_title("Forward flight power (no wings)")
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+
+        # --- Beta vs speed ---
+        ax2.plot(V_array, betas_deg, color="tab:orange", linewidth=2)
+        ax2.axvline(x=10, color="gray", linestyle="--", linewidth=1, label="Design point (10 m/s)")
+        ax2.set_xlabel("Forward speed [m/s]")
+        ax2.set_ylabel(r"Rotor tilt angle $\beta$ [deg]")
+        ax2.set_title(r"Rotor tilt angle $\beta$ (no wings)")
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        plt.savefig(filename, dpi=150)
+        plt.close()
+    
 def plot_q5_master_loop_summary(best_designs, dual_designs, c_tip_array, filename="plots/q5_master_loop_summary.png"):
     import matplotlib.pyplot as plt
     import numpy as np

@@ -23,7 +23,9 @@ from plot_funcs import (plot_big_grid_search,
                         plot_master_loop_3x2,
                         plot_q5_twist,
                         plot_q5_dCT_dP_distribution,
-                        plot_q5_dCT_dP_distribution_comparison
+                        plot_q5_dCT_dP_distribution_comparison,
+                        plot_q6_wingspan_sweep,
+                        plot_q6_forward_flight
                         )
 from print_funcs import (print_q3_optimums,
                          print_q2_comparison_latex,
@@ -50,31 +52,21 @@ class DesignResult:
     total_power_required: float = 0.0
     aspect_ratio: float = 0.0
     
-@dataclass
-class AircraftResults:
-    design_name: str
-    drone: object = field(repr=False)
-    blade: object = field(repr=False)
-    flight_time: float = 0.0
-    total_thrust_generation: float = 0.0
-    total_power_generation: float = 0.0
-    total_thrust_required: float = 0.0
-    total_power_required: float = 0.0
-    aspect_ratio: float = 0.0
  
 
 #TODO DO THE FINAL GRID SEARCH
 
 do = {
     "Q1": True,
-    "Q2": False,
-    "Q3": False,
-    "Q4": False,
-    "Q5_MASTER_LOOP": False,
-    "Q5_analysis": False,
-    "Q5_twist_chord_dCt_dP": False,
-    "Q5_twist_chord_dCt_dP_comparison": False,
-    "Q6": True    
+    "Q2": True,
+    "Q3": True,
+    "Q4": True,
+    "Q5_MASTER_LOOP": True,
+    "Q5_analysis": True,
+    "Q5_twist_chord_dCt_dP": True,
+    "Q5_twist_chord_dCt_dP_comparison": True,
+    "Q6": True,
+    "Q6_2d_grid_search": True,   
     }
 
 if do["Q1"]:
@@ -487,7 +479,7 @@ if do["Q5_MASTER_LOOP"]:
     
     # Q1 MUST BE RUN FIRST
     
-    # FOR THE FINAL STEPS WE ONLY USE DUALCOPTER
+    # FOR THE FINAL STEPS WE ONLY USE QUADCOPTER
     
 
 
@@ -546,7 +538,7 @@ if do["Q5_MASTER_LOOP"]:
                     # print(f"Master loop progress: {iteration_count/tot_iterations*100:.0f}%")
                     drone = DroneDesign(
                         reference=reference_drone,
-                        name=f"DualCopter_R{radius:.2f}_C{c_mean:.3f}",
+                        name=f"QuadCopter_R{radius:.2f}_C{c_mean:.3f}",
                         rotor_diameter=radius*2,
                         chord=chord_dist,
                         N_blades=N_blades,
@@ -605,7 +597,7 @@ if do["Q5_MASTER_LOOP"]:
 
     # run the master loop and save the designs to a dataclass object
     designs_ingenuity_chord = master_loop(
-        n_rotors=2,
+        n_rotors=4,
         n_radius=40,
         n_chords=40,
         chord_distribution=ingenuity.chord,
@@ -621,7 +613,7 @@ if do["Q5_MASTER_LOOP"]:
     blade_optimal_chord.set_chord(blade_optimal_chord.optimum_chord_distribution)
     
     designs_optimal_chord = master_loop(
-        n_rotors=2,
+        n_rotors=4,
         n_radius=40,
         n_chords=40,
         chord_distribution=blade_optimal_chord.chord,
@@ -679,8 +671,8 @@ if do["Q5_analysis"]:
     designs_optimal_chord = select_optimal_battery(designs_optimal_chord, max_batteries=N_BATT_MAX_2KG)
 
 
-    plot_master_loop_2x2(designs_ingenuity_chord, filename="plots/master_loop_analysis_2x2_ingenuity_chord.png")
-    plot_master_loop_2x2(designs_optimal_chord, filename="plots/master_loop_analysis_2x2_optimal_chord.png")
+    # plot_master_loop_2x2(designs_ingenuity_chord, filename="plots/master_loop_analysis_2x2_ingenuity_chord.png")
+    # plot_master_loop_2x2(designs_optimal_chord, filename="plots/master_loop_analysis_2x2_optimal_chord.png")
 
     plot_master_loop_3x2(designs_ingenuity_chord, main_title="Ingenuity Chord", filename="plots/master_loop_analysis_3x2_ingenuity_chord.png")
     plot_master_loop_3x2(designs_optimal_chord, main_title="Optimal Chord", filename="plots/master_loop_analysis_3x2_optimal_chord.png")
@@ -721,8 +713,8 @@ if do["Q5_twist_chord_dCt_dP"]:
         best_optimal   = pickle.load(f)
     
     # generate the twist distribtuions
-    dualCopter = best_optimal
-    blade = BladeDesign(drone=dualCopter, planet=mars, c_tip=np.mean(dualCopter.chord))
+    quadCopter = best_optimal
+    blade = BladeDesign(drone=quadCopter, planet=mars, c_tip=np.mean(quadCopter.chord))
     blade.compute_no_twist()
     blade.compute_linear_twist()
     blade.compute_optimum_twist()
@@ -742,13 +734,13 @@ if do["Q5_twist_chord_dCt_dP_comparison"]:
         best_ingenuity = pickle.load(f)
         best_optimal   = pickle.load(f)
 
-    dualCopter = best_optimal
+    quadCopter = best_optimal
     
 
     def compare_twists(constant_chord: bool=False):
         
         # compute all twist distributions from a single reference blade
-        ref_blade = BladeDesign(drone=dualCopter, planet=mars, c_tip=np.mean(dualCopter.chord), no_blade_elements=NO_BLADE_ELEMENTS)
+        ref_blade = BladeDesign(drone=quadCopter, planet=mars, c_tip=np.mean(quadCopter.chord), no_blade_elements=NO_BLADE_ELEMENTS)
         ref_blade.compute_no_twist()
         ref_blade.compute_linear_twist()
         ref_blade.compute_optimum_twist()
@@ -770,14 +762,14 @@ if do["Q5_twist_chord_dCt_dP_comparison"]:
 
         for label, twist in twist_cases:
             # fresh blade with the twist for this case
-            b = BladeDesign(drone=dualCopter, planet=mars, c_tip=np.mean(dualCopter.chord), no_blade_elements=NO_BLADE_ELEMENTS)
+            b = BladeDesign(drone=quadCopter, planet=mars, c_tip=np.mean(quadCopter.chord), no_blade_elements=NO_BLADE_ELEMENTS)
             b.set_chord(chord_distribution)
             b.set_twist(twist)
             b.bem(linear=False, dimensionless=False)
             bems.append(b)
 
             # deep-copy drone so each case has its own independent thrust/power state
-            drone_copy = copy.deepcopy(dualCopter)
+            drone_copy = copy.deepcopy(quadCopter)
             drone_copy.bem(b, linear=False, dimensionless=False)
             drone_bems.append(drone_copy)
 
@@ -786,7 +778,7 @@ if do["Q5_twist_chord_dCt_dP_comparison"]:
         plot_q5_dCT_dP_distribution_comparison(
             bems,
             labels=labels,
-            title="Dual Copter",
+            title="Quad Copter",
             filename=f"plots/q5_dCT_dP_distribution_comparison_constant_chord_{constant_chord}.png"
         )
 
@@ -819,21 +811,21 @@ if do["Q5_twist_chord_dCt_dP_comparison"]:
     best_constant_chord_design = DroneDesign(
         reference=ingenuity,
         name="Best Constant Chord Design",
-        rotor_diameter=dualCopter.rotor_diameter,
-        chord=np.full_like(dualCopter.chord, np.mean(dualCopter.chord)),
-        N_blades=dualCopter.N_blades,
-        N_rotors=dualCopter.N_rotors,
-        rpm=dualCopter.rpm,
-        N_batteries=dualCopter.N_batteries,
-        payload_mass=dualCopter.payload_mass,
-        aux_components_mass=dualCopter.aux_components_mass
+        rotor_diameter=quadCopter.rotor_diameter,
+        chord=np.full_like(quadCopter.chord, np.mean(quadCopter.chord)),
+        N_blades=quadCopter.N_blades,
+        N_rotors=quadCopter.N_rotors,
+        rpm=quadCopter.rpm,
+        N_batteries=quadCopter.N_batteries,
+        payload_mass=quadCopter.payload_mass,
+        aux_components_mass=quadCopter.aux_components_mass
     )
     best_constant_chord_design.solve_mass_power(P_initial=ingenuity.hover_power, planet=mars)
     best_constant_chord_design.compute_planet_performance(mars)
     
     blade_constant_chord = BladeDesign(drone=best_constant_chord_design,
                                        planet=mars,
-                                        c_tip=np.mean(dualCopter.chord))
+                                        c_tip=np.mean(quadCopter.chord))
     blade_constant_chord.set_chord(best_constant_chord_design.chord)
     blade_constant_chord.compute_no_twist()
     blade_constant_chord.set_twist(blade_constant_chord.no_twist)
@@ -845,100 +837,361 @@ if do["Q5_twist_chord_dCt_dP_comparison"]:
 if do["Q6"]:
     print("\n################### Q6 ###################\n")
     with open("results/best_designs.pkl", "rb") as f:
-        best_optimal   = pickle.load(f)
+        best_optimal = pickle.load(f)
 
-    dualCopter = best_optimal
+    quadCopter = best_optimal
 
-    
-    #TODO Forward flight and stuff like that
-    V_FORWARD = 10 # m/s design forward flight speed from the project description
-    M_PAYLOAD = 2 # kg full payload
-    
-    # determine wing shape (airfoil, twist, chord distribution)
-    # airfoil: compute reynolds and find suitable airfoil
-    # twist and chord: try different distributions
-    
-    wingspan = dualCopter.rotor_diameter*2
-    AR_wing = 3  # a reasonable starting assumption
-    wing_chord = wingspan / AR_wing
+    V_FORWARD = 10      # m/s — design forward flight speed
+    M_PAYLOAD = 2       # kg  — full payload
+
+    DOUBLE_ROTOR_DIAMETER = quadCopter.rotor_diameter * 2
+    wingspan_design = DOUBLE_ROTOR_DIAMETER   # design-point wingspan for Re calculation
+    AR_wing         = 15                        # aspect ratio — fixed throughout
+    wing_chord      = wingspan_design / AR_wing  # FIXED chord, does NOT change with wingspan sweep
     
 
-    
-    aircraft = Aircraft(
+    # --- Reynolds number and airfoil selection ---
+    aircraft_ref = Aircraft(
         reference=ingenuity,
-        name="aircraft",
-        rotor_diameter=dualCopter.rotor_diameter,
-        chord=dualCopter.chord,
-        N_blades=dualCopter.N_blades,
-        N_rotors=dualCopter.N_rotors,
-        wingspan=wingspan,
+        name="aircraft_ref",
+        rotor_diameter=quadCopter.rotor_diameter,
+        chord=quadCopter.chord,
+        N_blades=quadCopter.N_blades,
+        N_rotors=quadCopter.N_rotors,
+        wingspan=wingspan_design,
         wing_chord=wing_chord,
-        rpm=dualCopter.rpm,
-        N_batteries=dualCopter.N_batteries,
+        rpm=quadCopter.rpm,
+        N_batteries=quadCopter.N_batteries,
         payload_mass=M_PAYLOAD,
         aux_components_mass=1.0
     )
-    aircraft.solve_mass_power(P_initial=ingenuity.hover_power, planet=mars)
-    aircraft.compute_planet_performance(mars)
-    
-    aircraft.compute_reynolds(V_FORWARD, mars)
-    print(f"Reynolds number for the wings at {V_FORWARD} m/s: Re = {aircraft.Re:.2e}")
-    
+    aircraft_ref.solve_mass_power(P_initial=ingenuity.hover_power, planet=mars, wing_mass=0)
+    aircraft_ref.compute_planet_performance(mars)
+    aircraft_ref.compute_reynolds(V_FORWARD, mars)
+    print(f"Reynolds number for the wings at {V_FORWARD} m/s: Re = {aircraft_ref.Re:.2e}")
+
     print("We select NACA6409")
-    # read polar
     polar_6409_df = xfoil_polar_txt_to_dataframe("data/wing_naca6409_polar.txt")
-    polar_6409 = "data/wing_naca6409_polar.txt"
+    polar_6409    = "data/wing_naca6409_polar.txt"
     plot_q4_polars_side_by_side(polar_6409_df, filename="plots/naca6409_polars.png")
 
-    
-    wing = WingDesign(
-        drone=aircraft,
-        planet=mars,
-        c_tip=wing_chord,
-        polar_data=polar_6409
-        )
-    
-    V_FORWARD_ARRAY = np.linspace(0, 50, 24)  # from 0 to 12 m/s in 0.5 m/s increments
-    powers = []
-    betas = []
+    # --- No-wing forward flight sweep (speed sweep) ---
+    V_FORWARD_ARRAY = np.linspace(0, 12, 24)
+    powers_speed = []
+    betas_speed  = []
     for V in V_FORWARD_ARRAY:
-        P, beta, T = aircraft.forward_flight_power(V, mars)
-        powers.append(P)
-        betas.append(beta)
+        P, beta, T = aircraft_ref.forward_flight_power(V, mars)
+        powers_speed.append(P)
+        betas_speed.append(beta)
 
-    def plot_q6_forward_flight(V_array, powers, betas, filename="plots/q6_forward_flight.png"):
-        """
-        Plot total power and rotor tilt angle vs forward flight speed.
-        No-wing baseline case.
-        """
-        betas_deg = np.degrees(betas)
+    plot_q6_forward_flight(V_FORWARD_ARRAY, powers_speed, betas_speed,
+                           filename="plots/q6_forward_flight.png")
 
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    # --- Wingspan sweep at fixed V=10 m/s, fixed chord ---
+    wingspan_array = np.linspace(0, DOUBLE_ROTOR_DIAMETER * 2, 20)
+    powers  = []
+    weights = []
+    wing_weights = []
+    wingspan_valid = []
 
-        # --- Power vs speed ---
-        ax1.plot(V_array, powers, color="tab:blue", linewidth=2)
-        ax1.axvline(x=10, color="gray", linestyle="--", linewidth=1, label="Design point (10 m/s)")
-        ax1.set_xlabel("Forward speed [m/s]")
-        ax1.set_ylabel("Total power [W]")
-        ax1.set_title("Forward flight power (no wings)")
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
+    for ws in wingspan_array:
+        ws = float(ws)
+        aircraft = Aircraft(
+            reference=ingenuity,
+            name=f"aircraft_ws_{ws:.2f}",
+            rotor_diameter=quadCopter.rotor_diameter,
+            chord=quadCopter.chord,
+            N_blades=quadCopter.N_blades,
+            N_rotors=quadCopter.N_rotors,
+            wingspan=ws,
+            wing_chord=wing_chord,   # fixed chord throughout sweep
+            rpm=quadCopter.rpm,
+            N_batteries=quadCopter.N_batteries,
+            payload_mass=M_PAYLOAD,
+            aux_components_mass=1.0
+        )
+        wing = WingDesign(
+            drone=aircraft,
+            planet=mars,
+            c_tip=wing_chord,        # same fixed chord
+            polar_data=polar_6409
+        )
+        # wing.compute_optimum_plan_form_and_twist()
+        # wing.set_chord(wing.optimum_chord_distribution)
+        wing.compute_wing_mass(mars)
+        wing.compute_wing_lift_drag(V_FORWARD, mars)
 
-        # --- Beta vs speed ---
-        ax2.plot(V_array, betas_deg, color="tab:orange", linewidth=2)
-        ax2.axvline(x=10, color="gray", linestyle="--", linewidth=1, label="Design point (10 m/s)")
-        ax2.set_xlabel("Forward speed [m/s]")
-        ax2.set_ylabel(r"Rotor tilt angle $\beta$ [deg]")
-        ax2.set_title(r"Rotor tilt angle $\beta$ (no wings)")
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
+        result = aircraft.solve_mass_power(
+            P_initial=ingenuity.hover_power,
+            planet=mars,
+            wing_mass=wing.mass
+        )
 
+        if result is None:
+            print(f"  b={ws:.2f}m | FAILED TO CONVERGE")
+            continue
+
+        P, beta, T = aircraft.forward_flight_power(V_FORWARD, mars,
+                                                    wing_lift=wing.lift,
+                                                    wing_drag=wing.drag)
+        
+        # Only append if P is valid
+        if np.isfinite(P):
+            powers.append(P)
+            weights.append(aircraft.mass)
+            wing_weights.append(float(wing.mass) if isinstance(wing.mass, np.ndarray) else wing.mass)
+            wingspan_valid.append(ws)
+            print(f"  b={ws:.2f}m | wing_mass={float(wing.mass):.3f}kg | "
+                  f"lift={wing.lift:.2f}N | drag={wing.drag:.2f}N | "
+                  f"total_mass={aircraft.mass:.2f}kg | P={P:.1f}W")
+    
+    # Use only valid wingspan values for plotting
+    plot_q6_wingspan_sweep(np.array(wingspan_valid), powers, weights, V_FORWARD,
+                           filename="plots/q6_wingspan_sweep.png")
+    
+    #extract solution with lowest power
+    min_power_idx = np.argmin(powers)
+    P_base = powers[min_power_idx]   
+    
+    results = {
+        "density": [],
+        "power": [],
+        "weight": [],
+        "wing_weight": []
+    }
+    for density in np.linspace(1, aircraft_ref.WING_DENSITY, 100):
+        aircraft = Aircraft(
+            reference=ingenuity,
+            name=f"aircraft_density_{density:.2f}",
+            rotor_diameter=quadCopter.rotor_diameter,
+            chord=quadCopter.chord,
+            N_blades=quadCopter.N_blades,
+            N_rotors=quadCopter.N_rotors,
+            wingspan=DOUBLE_ROTOR_DIAMETER*2,
+            wing_chord=wing_chord,   # fixed chord throughout sweep
+            rpm=quadCopter.rpm,
+            N_batteries=quadCopter.N_batteries,
+            payload_mass=M_PAYLOAD,
+            aux_components_mass=1.0
+        )
+        wing = WingDesign(
+            drone=aircraft,
+            planet=mars,
+            c_tip=aircraft.wing_chord,        # same fixed chord
+            polar_data=polar_6409
+        )
+        wing.WING_DENSITY = density
+        wing.compute_wing_mass(mars)
+        wing.compute_wing_lift_drag(V_FORWARD, mars)
+        result = aircraft.solve_mass_power(
+            P_initial=P_base,
+            planet=mars,
+            wing_mass=wing.mass
+        )
+        P, beta, T = aircraft.forward_flight_power(V_FORWARD, mars,
+                                                    wing_lift=wing.lift,
+                                                    wing_drag=wing.drag)
+        if np.isfinite(P):
+            results["density"].append(density)
+            results["power"].append(P)
+            results["weight"].append(aircraft.mass)
+            results["wing_weight"].append(wing.mass)
+    
+    
+    # plot power vs density
+    def plot_q6_density_sweep(results, filename="plots/q6_density_sweep.png"):
+        fig, ax1 = plt.subplots(figsize=(8, 6))
+        ax1.plot(results["density"], results["power"], label="Total Power [W]", color="blue")
+        ax1.axhline(results["power"][-1]*0.9, color="red", linestyle="--", label=f"Target Power (90% of min) = {results['power'][-1]*0.9:.1f} W")
+        ax1.set_xlabel("Wing Material Density [kg/m³]")
+        ax1.set_ylabel("Total Power [W]", color="blue")
+        ax1.tick_params(axis='y', labelcolor="blue")
+        ax1.legend(loc="upper left")
+
+        # ax2 = ax1.twinx()
+        # ax2.plot(results["density"], results["weight"], label="Total Aircraft Mass [kg]", color="green")
+        # ax2.plot(results["density"], results["wing_weight"], label="Wing Mass [kg]", color="orange")
+        # ax2.set_ylabel("Mass [kg]", color="green")
+        # ax2.tick_params(axis='y', labelcolor="green")
+        # ax2.legend(loc="upper right")
+
+        plt.title("Effect of Wing Material Density on Power and Mass at V=10 m/s")
         plt.tight_layout()
         plt.savefig(filename, dpi=150)
         plt.close()
     
-    plot_q6_forward_flight(V_FORWARD_ARRAY, powers, betas, filename="plots/q6_forward_flight.png")
+    plot_q6_density_sweep(results, filename="plots/q6_density_sweep.png")
+    
+    # find density where power is just below 10% above the minimum power found in the wingspan sweep
+    P_base = results["power"][-1]  # last power value corresponds to the highest density, which should be the lowest power
+    target_power = P_base * 0.9
+    density_opt = None
+    for density, power in zip(results["density"], results["power"]):
+        if power <= target_power:
+            density_opt = density
+        else:
+            break
+    print(f"Optimal wing material density for power within 10% of minimum: {density_opt:.2f} kg/m³")
+    
+    print("Final sweep: forward flight power vs speed for multiple fixed beta values")
+    
+    aircraft = Aircraft(
+            reference=ingenuity,
+            name=f"aircraft_final_V_{V:.2f}",
+            rotor_diameter=quadCopter.rotor_diameter,
+            chord=quadCopter.chord,
+            N_blades=quadCopter.N_blades,
+            N_rotors=quadCopter.N_rotors,
+            wingspan=0,
+            wing_chord=0,   # fixed chord throughout sweep
+            rpm=quadCopter.rpm,
+            N_batteries=quadCopter.N_batteries,
+            payload_mass=M_PAYLOAD,
+            aux_components_mass=1.0)
+    
+    # wing = WingDesign(
+    #         drone=aircraft,
+    #         planet=mars,
+    #         c_tip=aircraft.wing_chord,        # same fixed chord
+    #         polar_data=polar_6409)
+    
+    # wing.compute_wing_mass(mars)
+    
+    result = aircraft.solve_mass_power(
+            P_initial=P_base,
+            planet=mars,
+            wing_mass=0.0)
 
+    V_FORWARD_ARRAY = np.linspace(0, 12, 24)
+    beta_values = np.linspace(-2, 8, 5)
     
+    results = {beta: [] for beta in beta_values}
     
+    for beta_deg in beta_values:
+        for V in V_FORWARD_ARRAY:
+            P, T = aircraft.compute_power_fixed_beta(V_forward=V, beta_deg=beta_deg, planet=mars)
+            results[beta_deg].append(P)
+
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    colors      = plt.cm.tab10(np.linspace(0, 0.6, len(beta_values)))
+    linestyles  = ["-", "--", ":", "-.", (0, (3,1,1,1)), (0, (5,1))]
+
+    for (beta_deg, powers), col, ls in zip(results.items(), colors, linestyles):
+        ax.plot(V_FORWARD_ARRAY, powers, color=col, linestyle=ls,
+                linewidth=2, label=rf"$\beta = {beta_deg:.0f}°$")
+
+    # # Add free-solve trimmed line for reference
+    # powers_free, betas_free = [], []
+    # for V in V_FORWARD_ARRAY:
+    #     P, beta, T = aircraft.forward_flight_power(V, mars)
+    #     powers_free.append(P)
+    #     betas_free.append(np.degrees(beta))
+
+    # ax.plot(V_FORWARD_ARRAY, powers_free, color="black", linewidth=2.5,
+    #         linestyle="--", label=r"Trimmed ($\beta$ from force balance)")
+
+    ax.axvline(x=10, color="gray", linestyle=":", linewidth=1, alpha=0.7)
+    ax.set_xlabel("Forward speed [m/s]")
+    ax.set_ylabel("Total power [W]")
+    ax.set_title("Forward flight power for fixed rotor tilt angles")
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig("plots/q6_power_vs_speed_multi_beta.png", dpi=150)
+    plt.close()
+    # def plot_q6_final_speed_sweep(V_array, powers, betas_deg, filename="plots/q6_final_speed_sweep.png"):
+    #     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+    #     # Power
+    #     ax1.plot(V_array, powers, color="tab:blue", linewidth=2)
+    #     ax1.axvline(x=10, color="gray", linestyle="--", linewidth=1, label="Design point (10 m/s)")
+    #     ax1.set_xlabel("Forward speed [m/s]")
+    #     ax1.set_ylabel("Total power [W]")
+    #     ax1.set_title("Power vs. speed — final design (no wings)")
+    #     ax1.legend()
+    #     ax1.grid(True, alpha=0.3)
+
+    #     # Beta
+    #     ax2.plot(V_array, betas_deg, color="tab:orange", linewidth=2)
+    #     ax2.axvline(x=10, color="gray", linestyle="--", linewidth=1, label="Design point (10 m/s)")
+    #     ax2.set_xlabel("Forward speed [m/s]")
+    #     ax2.set_ylabel(r"Rotor tilt angle $\beta$ [°]")
+    #     ax2.set_title(r"Rotor tilt $\beta$ vs. speed — final design")
+    #     ax2.legend()
+    #     ax2.grid(True, alpha=0.3)
+
+    #     plt.tight_layout()
+    #     plt.savefig(filename, dpi=150)
+    #     plt.close()
+    
+    # plot_q6_final_speed_sweep(V_FORWARD_ARRAY, powers_final, betas_final,
+    #                          filename="plots/q6_final_speed_sweep.png")
     print("\nQ6 DONE\n")
+
+if do["Q6_2d_grid_search"]:
+    # --- 2D sweep: wingspan × chord ---
+    b_array = np.linspace(0.01, DOUBLE_ROTOR_DIAMETER * 2, 15)   # wingspan [m]
+    c_array = np.linspace(0.05, 0.60, 15)                         # chord [m], physically reasonable range
+
+    power_grid  = np.full((len(b_array), len(c_array)), np.nan)
+    weight_grid = np.full((len(b_array), len(c_array)), np.nan)
+
+    for i, ws in enumerate(b_array):
+        for j, c in enumerate(c_array):
+            aircraft = Aircraft(
+                reference=ingenuity,
+                name=f"aircraft_b{ws:.2f}_c{c:.3f}",
+                rotor_diameter=quadCopter.rotor_diameter,
+                chord=quadCopter.chord,
+                N_blades=quadCopter.N_blades,
+                N_rotors=quadCopter.N_rotors,
+                wingspan=ws,
+                wing_chord=c,
+                rpm=quadCopter.rpm,
+                N_batteries=quadCopter.N_batteries,
+                payload_mass=M_PAYLOAD,
+                aux_components_mass=1.0
+            )
+            wing = WingDesign(drone=aircraft, planet=mars, c_tip=c, polar_data=polar_6409)
+            wing.compute_wing_mass(mars)
+            wing.compute_wing_lift_drag(V_FORWARD, mars)
+
+            result = aircraft.solve_mass_power(
+                P_initial=ingenuity.hover_power, planet=mars, wing_mass=wing.mass
+            )
+            if result is None:
+                continue
+
+            P, beta, T = aircraft.forward_flight_power(V_FORWARD, mars,
+                                                        wing_lift=wing.lift,
+                                                        wing_drag=wing.drag)
+            if np.isfinite(P) and aircraft.mass < 500:
+                power_grid[i, j]  = P
+                weight_grid[i, j] = aircraft.mass
+
+    # Find global optimum
+    opt_idx = np.unravel_index(np.nanargmin(power_grid), power_grid.shape)
+    b_opt   = b_array[opt_idx[0]]
+    c_opt   = c_array[opt_idx[1]]
+    P_opt   = power_grid[opt_idx]
+    print(f"Optimal: b={b_opt:.3f} m, c={c_opt:.3f} m, AR={b_opt/c_opt:.1f}, P={P_opt:.1f} W")
+    
+    def plot_q6_2d_sweep(b_array, c_array, power_grid, b_opt, c_opt,
+                     filename="plots/q6_2d_sweep.png"):
+        fig, ax = plt.subplots(figsize=(8, 6))
+        cf = ax.contourf(c_array, b_array, power_grid, levels=20, cmap="viridis_r")
+        plt.colorbar(cf, ax=ax, label="Total power [W]")
+        ax.contour(c_array, b_array, power_grid, levels=20, colors="white", linewidths=0.5, alpha=0.4)
+        ax.scatter([c_opt], [b_opt], color="red", s=100, zorder=5, label=f"Optimum (b={b_opt:.2f}m, c={c_opt:.2f}m)")
+        ax.set_xlabel("Wing chord $c$ [m]")
+        ax.set_ylabel("Wingspan $b$ [m]")
+        ax.set_title(f"Forward flight power [W] at $V$ = {V_FORWARD} m/s")
+        ax.legend()
+        plt.tight_layout()
+        plt.savefig(filename, dpi=150)
+        plt.close()
+        
+    plot_q6_2d_sweep(b_array, c_array, power_grid, b_opt, c_opt,
+                     filename="plots/q6_2d_sweep.png")

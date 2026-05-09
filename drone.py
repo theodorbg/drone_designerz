@@ -396,7 +396,7 @@ class DroneDesign(Drone):
 
         """
         
-        self.motor_mass = self.N_rotors * self.reference.motor_mass * P_drone / (self.reference.N_rotors * self.reference.hover_power) # kg
+        self.motor_mass = self.reference.motor_mass * P_drone / (self.reference.N_rotors * self.reference.hover_power) # kg
 
     def compute_battery_capacity(self):
         self.battery_capacity_per_battery = self.reference.battery_capacity_per_battery # J per battery, same as reference design
@@ -640,6 +640,7 @@ class Aircraft(DroneDesign):
         beta = np.arctan2(D_eff, W_eff)       # Eq. 70
         T    = W_eff / np.cos(beta)            # Eq. 69
 
+        # print(np.degrees(beta))
         return beta, T
 
     def forward_flight_power(self, V_forward: float, planet: 'Planet',
@@ -666,14 +667,92 @@ class Aircraft(DroneDesign):
         v_i = self.solve_induced_velocity(V_forward, beta, planet, T)
 
         # Step 3: induced power with losses + profile drag power (Eq. 81)
-        P_induced = self.gamma * T * v_i
-        self.compute_power_loss(planet.rho)   # updates self.powerloss
-        P_profile = self.power_loss
+        # P_induced = self.gamma * T * v_i
+        # self.compute_power_loss(planet.rho)   # updates self.power_loss
+        # P_profile = self.power_loss
+        P_ideal = T * (V_forward * np.sin(beta) + v_i)
+        P0 = 1/8 * planet.rho * self.N_blades * self.omega**3 * self.C_D0 * (np.mean(self.chord) / self.rotor_radius) * self.rotor_radius**5
+        P_total = self.gamma * P_ideal + P0
 
-        P_total = P_induced + P_profile
+        # P_total = P_induced + P_profile
 
         return P_total, beta, T
     
+    def compute_fuselage_mass(self, wing_mass):
+        """
+        Function to compute the mass of the fuselage based on the mass of the rest of the drone and the linear relationship with the reference design (ingenuity) 
+        The battery, rotor and motor mass must be computed before this happens
+        
+        The weight of the fuselage scales linearly with the weight of the rest of the aircraft 
+        (including the payload). 
+        So the mass of the fuselage is
+        
+            Mfus = M_no_fuselage*(Mfus_ingenuity/M_no_fuselage_ingenuity) 
+
+        """
+        
+        self.mass_no_fuselage = self.payload_mass + self.aux_components_mass + self.battery_mass + self.rotor_mass + self.motor_mass + wing_mass
+        
+        # 3. compute the mass of the fuselage, by the linear relationship with reference / ingenuity
+        self.fuselage_mass = self.mass_no_fuselage * (self.reference.fuselage_mass / self.reference.mass_no_fuselage)
+
+    def compute_power_fixed_beta(self, V_forward: float, beta_deg: float, planet: 'Planet'):
+        beta = np.radians(beta_deg)
+        T = self.mass * planet.g / np.cos(beta)  # required thrust to balance weight at this tilt
+        v_i = self.solve_induced_velocity(V_forward, beta, planet, T)
+        P_ideal = T * (V_forward * np.sin(beta) + v_i)
+        P0 = 1/8 * planet.rho * self.N_blades * self.omega**3 * self.C_D0 * (np.mean(self.chord) / self.rotor_radius) * self.rotor_radius**5
+        P_total = self.gamma * P_ideal + P0
+
+        return P_total, T
+
+        
+    
+    def compute_total_mass(self, P_drone, wing_mass):
+        
+        self.compute_battery_mass()
+        self.compute_rotor_mass()
+        self.compute_motor_mass(P_drone)
+        self.compute_fuselage_mass(wing_mass)
+        # Add up all the masses to get total mass of the drone design
+        self.mass = self.payload_mass + self.battery_mass + self.aux_components_mass + self.rotor_mass + self.motor_mass + self.fuselage_mass + wing_mass
+
+    def solve_mass_power(self, P_initial: float, planet: 'Planet', wing_mass: float,
+                         tol: float=1, max_iter: int=10000, alpha: float=0.5):
+        
+        """
+        Solve the mass-power relationship iteratively, since the power depends on the mass and the mass depends on the power.
+        We start with an initial guess for the power (P_initial), compute the mass based on that power, 
+        then compute the hover power based on that mass, and check for convergence. We use a relaxed update to avoid oscillation.
+        """
+        P_drone = P_initial
+        
+        for i in range(max_iter):
+            # First we add up all the masses of the drone components based on the current power estimate
+            self.compute_total_mass(P_drone, wing_mass)
+            # Then we compute the hover power for this design
+            self.compute_planet_performance(planet)
+            # The estimate is saved in self.hover_power, so we can use that as the new estimate for power consumption
+            P_new = self.hover_power
+            
+            # Check for non-finite results to avoid infinite loops                
+            if not np.isfinite(P_new) or not np.isfinite(self.mass):
+                # print(f"Warning: non-finite result for {self.name} at iteration {i+1}.")
+                return None
+
+            
+            # Check convergence based on the absolute difference between the new power estimate and the previous one and compare to the tolerance
+            if abs(P_new - P_drone) < tol:
+                # print(f"Converged in {i+1} iterations")
+                # if self.mass < 100:
+                return self
+            
+            # Relaxed update — blend old and new estimate to avoid oscillation
+            P_drone = alpha * P_new + (1 - alpha) * P_drone
+        
+        print(f"Warning: did not converge after {max_iter} iterations. Residual = {abs(P_new - P_drone):.4f} W")
+        return None
+
     def compute_reynolds(self, V_forward: float, planet: 'Planet'):
         
         

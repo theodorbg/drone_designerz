@@ -44,10 +44,8 @@ class BladeDesign:
         # self.alpha_0_rad, self.Cl_alpha = self.alpha_from_cl(0.0, self.Cl, self.aoa_deg, n_fit=len(self.Cl))
         self.solidity = drone.solidity
         
-        self.mass = drone.mass
         self.g = planet.g
         self.rho = planet.rho
-        self.thrust = self.mass * self.g
         self.omega = drone.omega
         self.C_T = drone.C_T
         
@@ -348,25 +346,24 @@ class WingDesign(BladeDesign):
         self.aoa_rad = np.radians(self.aoa_deg)
 
         self.wing_chord = c_tip
-        WING_DENSITY = 74 # kg/m^3
+        self.WING_DENSITY = 74 # kg/m^3
         self.wingspan = drone.wingspan
         self.tc = 9/100
-        self.camber = 6/10
     
-    def compute_wing_mass(self):
+    def compute_wing_mass(self, planet):
         """
         Wing mass = volume * density
         Volume = airfoil_area * wingspan
-        Airfoil area approximated as: 0.6 * t/c * c^2  (standard flat-back approximation)
+        Airfoil area approximated as: 0.6851 * t/c * c^2  (standard flat-back approximation)
         """
         
-        airfoil_area = self.camber * self.tc * self.wing_chord**2   # [m²]
+        airfoil_area = 0.6851 * self.tc * self.wing_chord**2   # [m²]
         volume = airfoil_area * self.wingspan                  # [m³]
-        self.wing_weight = self.WING_DENSITY * volume * self.drone.planet.g  # [N]
-        self.wing_mass   = self.WING_DENSITY * volume          # [kg]
+        self.weight = self.WING_DENSITY * volume * planet.g  # [N]
+        self.mass   = self.WING_DENSITY * volume          # [kg]
         return self
     
-    def compute_wing_lift_drag(self, V_forward: float, planet: "Planet", polar: pd.DataFrame):
+    def compute_wing_lift_drag(self, V_forward: float, planet: "Planet"):
         aoa_deg, _ = self.find_design_aoa()   # peak CL/CD from wing polar
 
         cl = np.interp(aoa_deg, self.aoa_deg, self.Cl)
