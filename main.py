@@ -28,7 +28,7 @@ from parse_txt_funcs import(read_polar_txt,
                            load_rotor_parameters
                            )
 
- 
+
 
 #TODO DO THE FINAL GRID SEARCH
 
@@ -37,18 +37,19 @@ do = {
     "Q2_BIG_GRID_SEARCH": False,
     "Q2_NARROW_GRID_SEARCH": False,
     "Q2_FINAL_GRID_SEARCH": False,
+    "Q2_ONE_PASS_GRID_SEARCH": False,
     "Q2": True,
     "Q3": True,
-    "Q4": True,
+    "Q4": False,
     "twist_chord_single_blade": False,
-    "Q5": True,
+    "Q5": False,
     "bem_template": False,
     "bem": False,
     "bem_master": False,
     "Q6": False,
     "MASTER_LOOP": False,
-    "MASTER_LOOP_ingenuity_chord_distribution": True,
-    "test_ingenuity_bem": True
+    "MASTER_LOOP_ingenuity_chord_distribution": False,
+    "test_ingenuity_bem": False
     }
 
 if do["Q1"]:
@@ -108,7 +109,7 @@ if do["Q1"]:
 if do["Q2_BIG_GRID_SEARCH"]:
     print("\n################### Q2_BIG_GRID_SEARCH ###################\n")
     print("\nRunning Q2 BIG GRID SEARCH\n")
-
+    
     # ROTOR DIAMETER GRID SEARCH ARRAY
     # From 1/2 ingenuity to 4x ingenuity as a starting point
     diameter_array = np.linspace(ingenuity.rotor_diameter / 10, # lower bound
@@ -125,12 +126,14 @@ if do["Q2_BIG_GRID_SEARCH"]:
     P_initial = ingenuity.hover_power  
 
     # HARDCODED CHORD FROM Q5
+    """
     chord_opt_q5 = np.array([1.37878788, 1.21350071, 1.08360023, 0.97882126, 0.89251894, 0.82020202,
                              0.75872578, 0.70582257, 0.65981598, 0.61943995, 0.58372042, 0.55189577,
                              0.52336189, 0.49763346, 0.47431611, 0.4530861,  0.43367515, 0.41585906,
                              0.39944904, 0.38428494, 0.37023008, 0.35716703, 0.34499438, 0.3336241,
                              0.32297939, 0.31299294, 0.30360553, 0.29476482, 0.28642442, 0.27854301])
-
+    """
+    chord_opt_q5 = 0.1417
     for N_blades in N_blade_array:
         for diameter in diameter_array:
         
@@ -455,20 +458,21 @@ if do["Q2"]:
         
         return best_dual, best_quad, converged_drone_designs
     
-    # HARDCODED CHORD FROM Q5
+        # HARDCODED CHORD FROM Q5
     chord_opt_q5 = np.array([1.37878788, 1.21350071, 1.08360023, 0.97882126, 0.89251894, 0.82020202,
                              0.75872578, 0.70582257, 0.65981598, 0.61943995, 0.58372042, 0.55189577,
                              0.52336189, 0.49763346, 0.47431611, 0.4530861,  0.43367515, 0.41585906,
                              0.39944904, 0.38428494, 0.37023008, 0.35716703, 0.34499438, 0.3336241,
                              0.32297939, 0.31299294, 0.30360553, 0.29476482, 0.28642442, 0.27854301])
+    
     n_iter = 100
     # N_blades_array = np.array([2, 3, 4, 5])
-    N_blades_array = np.array([2, 3])
-    min_radius = 0.15
-    max_radius = 0.8
+    N_blades_array = np.array([2, 3, 4, 5])
+    min_radius = 0.35
+    max_radius = 1.4
     diameter_array = np.linspace(min_radius*2, max_radius*2, n_iter)
                 
-    dualCopter, quadCopter, converged_drone_designs = grid_search_q2(diameters=diameter_array, N_blades=N_blades_array, chord=chord_opt_q5, planet=mars, reference_drone=ingenuity)
+    dualCopter, quadCopter, converged_drone_designs = grid_search_q2(diameters=diameter_array, N_blades=N_blades_array, chord=0.06, planet=mars, reference_drone=ingenuity)
     
     plot_grid_search(
         converged_drone_designs=converged_drone_designs,
@@ -496,6 +500,149 @@ if do["Q2"]:
     
     print("\nQ2 GRID SEARCH DONE \n")
 
+
+if do["Q2_ONE_PASS_GRID_SEARCH"]:
+    print("\n################### Q2_ONE_PASS_GRID_SEARCH ###################\n")
+    print("\nRunning Q2 ONE-PASS GRID SEARCH\n")
+
+    # Hardcoded chord from Q5
+    chord_opt_q5 = np.array([
+        1.37878788, 1.21350071, 1.08360023, 0.97882126, 0.89251894, 0.82020202,
+        0.75872578, 0.70582257, 0.65981598, 0.61943995, 0.58372042, 0.55189577,
+        0.52336189, 0.49763346, 0.47431611, 0.4530861,  0.43367515, 0.41585906,
+        0.39944904, 0.38428494, 0.37023008, 0.35716703, 0.34499438, 0.3336241,
+        0.32297939, 0.31299294, 0.30360553, 0.29476482, 0.28642442, 0.27854301
+    ])
+
+    def search_best_design(
+        *,
+        n_rotors: int,
+        diameters: np.ndarray,
+        n_blades_array: np.ndarray,
+        chord: np.ndarray,
+        planet: Planet,
+        reference_drone: Drone,
+        rpm: float = 2800,
+        n_batteries: int = 6,
+        payload_mass: float = 2.0,
+        aux_components_mass: float = 1.0,
+    ):
+        converged_drone_designs = []
+        P_initial = reference_drone.hover_power
+
+        for n_blades in n_blades_array:
+            for diameter in diameters:
+                drone = DroneDesign(
+                    reference=reference_drone,
+                    name=f"{n_rotors}-Rotor Copter",
+                    rotor_diameter=diameter,
+                    chord=chord,
+                    N_blades=int(n_blades),
+                    N_rotors=n_rotors,
+                    rpm=rpm,
+                    N_batteries=n_batteries,
+                    payload_mass=payload_mass,
+                    aux_components_mass=aux_components_mass,
+                )
+
+                result = drone.solve_mass_power(P_initial, planet)
+                if result is not None:
+                    converged_drone_designs.append(result)
+                else:
+                    print(
+                        f"Skipping {drone.name} at R={drone.rotor_radius:.2f} m, "
+                        f"blades={drone.N_blades}"
+                    )
+
+        if not converged_drone_designs:
+            return None, []
+
+        best_design = max(converged_drone_designs, key=lambda d: d.total_hover_time)
+        return best_design, converged_drone_designs
+
+    # Use one broad search for each configuration
+    # You can tighten these bounds if you already know the useful region.
+    n_iter = 100
+    diameter_array_2_rotor = np.linspace(0.30, 1.60, n_iter)
+    diameter_array_4_rotor = np.linspace(0.30, 1.60, n_iter)
+
+    # Choose blade counts to test
+    N_blades_array = np.array([2, 3, 4, 5])
+
+    best_dual, dual_results = search_best_design(
+        n_rotors=2,
+        diameters=diameter_array_2_rotor,
+        n_blades_array=N_blades_array,
+        chord=chord_opt_q5,
+        planet=mars,
+        reference_drone=ingenuity,
+    )
+
+    best_quad, quad_results = search_best_design(
+        n_rotors=4,
+        diameters=diameter_array_4_rotor,
+        n_blades_array=N_blades_array,
+        chord=chord_opt_q5,
+        planet=mars,
+        reference_drone=ingenuity,
+    )
+
+    all_results = dual_results + quad_results
+
+    # Optional plot of both searches together
+    plot_grid_search(
+        converged_drone_designs=all_results,
+        N_blade_array=N_blades_array,
+        filename="plots/q2_one_pass_grid_search.png",
+        fig_title="Q2 One-Pass Grid Search",
+    )
+
+    # Print best designs
+    if best_dual is not None:
+        print(
+            f"\nBest 2-Rotor Design: Rotor Radius = {best_dual.rotor_radius:.2f} m, "
+            f"Blades = {best_dual.N_blades}, Flight Time = {best_dual.total_hover_time:.2f} s"
+        )
+    else:
+        print("\nNo converged 2-Rotor design found.")
+
+    if best_quad is not None:
+        print(
+            f"Best 4-Rotor Design: Rotor Radius = {best_quad.rotor_radius:.2f} m, "
+            f"Blades = {best_quad.N_blades}, Flight Time = {best_quad.total_hover_time:.2f} s"
+        )
+    else:
+        print("No converged 4-Rotor design found.")
+
+    # Comparison table
+    if best_dual is not None and best_quad is not None:
+        print_q2_comparison_latex(
+            best_dual=best_dual,
+            best_quad=best_quad,
+            caption="Final Q2 comparison of dual- and quad-copter designs",
+            label="tab:q2_final_comparison",
+        )
+
+        best_overall = (
+            best_dual if best_dual.total_hover_time >= best_quad.total_hover_time else best_quad
+        )
+        print(f"Chosen best design: {best_overall.name}")
+
+        plot_weight_distribution_pie(
+            design=best_dual,
+            filename="plots/q2_weight_distribution_best_dual_design.png",
+            title=f"Weight Distribution — {best_dual.name}",
+        )
+
+        plot_weight_distribution_pie(
+            design=best_quad,
+            filename="plots/q2_weight_distribution_best_quad_design.png",
+            title=f"Weight Distribution — {best_quad.name}",
+        )
+
+    print("\nQ2 ONE-PASS GRID SEARCH DONE \n")
+
+
 if do["Q3"]:
     print("\n################### Q3 ###################\n")
     print("\nRunning Q3 and determining optimum number of batteries\n")
@@ -515,7 +662,7 @@ if do["Q3"]:
         print(f"Max total batteries within 2 kg: {N_batt_max_2kg}")
 
         # Evaluate beyond the 2 kg limit so unconstrained optimum can be found
-        N_batt_eval = np.arange(base_batteries, base_batteries + 2 * N_extra_max_2kg + 1, dtype=int)
+        N_batt_eval = np.arange(base_batteries, base_batteries + 2 * N_extra_max_2kg + 1+90, dtype=int)
 
         P_initial = ingenuity.hover_power
 

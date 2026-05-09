@@ -96,7 +96,7 @@ class Drone:
         self.rotor_radius = rotor_diameter / 2
         self.rotor_area = pi * self.rotor_radius**2
         self.chord = np.atleast_1d(np.asarray(chord, dtype=float))
-        self.blade_area = np.trapz(self.chord, 
+        self.blade_area = np.trapezoid(self.chord, 
                                 np.linspace(0, self.rotor_radius, len(self.chord)))
         self.N_blades = N_blades
         self.N_rotors = N_rotors
@@ -183,7 +183,7 @@ class Drone:
             # dP0 = 1/2 * rho * Nb * c(r) * Cd0 * (omega*r)^3 * dr
             r = np.linspace(0, R, len(c))
             integrand = c * (omega * r)**3          # c(r) * (Ωr)³
-            p0_per_rotor = 0.5 * rho * Nb * Cd0 * np.trapz(integrand, r)
+            p0_per_rotor = 0.5 * rho * Nb * Cd0 * np.trapezoid(integrand, r)
 
         self.power_loss = self.N_rotors * p0_per_rotor
     
@@ -389,14 +389,16 @@ class DroneDesign(Drone):
 
         """
         
-        self.motor_mass = self.N_rotors * self.reference.motor_mass * P_drone / (self.reference.N_rotors * self.reference.hover_power) # kg
+        self.motor_mass = self.reference.motor_mass * P_drone / self.reference.hover_power # kg
 
     def compute_battery_capacity(self):
         self.battery_capacity_per_battery = self.reference.battery_capacity_per_battery # J per battery, same as reference design
         self.total_battery_capacity = self.N_batteries * self.battery_capacity_per_battery # J
+        #self.total_battery_capacity = 20*3600 # J
 
     def compute_battery_mass(self):
         self.battery_mass = self.N_batteries * self.reference.mass_per_battery # kg, scales linearly with number of batteries, same mass per battery
+        #self.battery_mass = 0.5
             
     def compute_fuselage_mass(self):
         """
@@ -442,7 +444,7 @@ class DroneDesign(Drone):
         self.mass = self.payload_mass + self.battery_mass + self.aux_components_mass + self.rotor_mass + self.motor_mass + self.fuselage_mass
                 
     def solve_mass_power(self, P_initial: float, planet: 'Planet',
-                         tol: float=1e-4, max_iter: int=1000, alpha: float=0.5):
+                         tol: float=1.0, max_iter: int=10000, alpha: float=0.1):
         
         """
         Solve the mass-power relationship iteratively, since the power depends on the mass and the mass depends on the power.

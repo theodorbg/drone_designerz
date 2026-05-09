@@ -67,13 +67,13 @@ def plot_big_grid_search(converged_drone_designs, N_blade_array, filename, fig_t
         plt.close()
 
 def plot_grid_search(converged_drone_designs, N_blade_array, filename, fig_title):
-    # Color map for left column: colored by number of blades
-    blade_colors = {n: c for n, c in zip(N_blade_array, ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'])}
-
-    # Color map for right column: colored by rotor radius
-    unique_radii = sorted(set(d.rotor_radius for d in converged_drone_designs if d is not None))
-    radius_cmap = plt.colormaps['tab10'].resampled(max(len(unique_radii), 1))
-    radius_colors = {r: radius_cmap(i) for i, r in enumerate(unique_radii)}
+    # Color map: number of blades
+    blade_colors = {
+        n: c for n, c in zip(
+            N_blade_array,
+            ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+        )
+    }
 
     metrics = [
         ("hover_power", "Hover Power [W]"),
@@ -82,12 +82,15 @@ def plot_grid_search(converged_drone_designs, N_blade_array, filename, fig_title
     ]
 
     for drone_name in ["Dual Copter", "Quad Copter"]:
-        fig, ax = plt.subplots(3, 2, figsize=(14, 12))
-        fig.suptitle(f"{fig_title} — {drone_name}", fontsize=14, fontweight="bold", y=1.02)
+        fig, ax = plt.subplots(3, 1, figsize=(4, 6))
+        fig.suptitle(f"{fig_title} — {drone_name}", fontsize=14, fontweight="bold")
 
-        subset = [d for d in converged_drone_designs if d is not None and d.name == drone_name]
+        subset = [
+            d for d in converged_drone_designs
+            if d is not None and d.name == drone_name
+        ]
 
-        # LEFT COLUMN: x = rotor_radius, one curve per N_blades
+        # LEFT COLUMN ONLY: x = rotor_radius, one curve per N_blades
         for n_blades in N_blade_array:
             series = sorted(
                 [d for d in subset if d.N_blades == n_blades],
@@ -99,65 +102,39 @@ def plot_grid_search(converged_drone_designs, N_blade_array, filename, fig_title
             x = np.array([d.rotor_radius for d in series], dtype=float)
             color = blade_colors.get(n_blades, "gray")
 
-            for row, (attr, _) in enumerate(metrics):
+            for row, (attr, ylabel) in enumerate(metrics):
                 y = np.array([getattr(d, attr) for d in series], dtype=float)
-                ax[row, 0].plot(
+                ax[row].plot(
                     x, y,
-                    marker="o", linestyle="-", linewidth=1.5, markersize=4,
+                    marker="o",
+                    linestyle="-",
+                    linewidth=1.5,
+                    markersize=4,
                     color=color
                 )
 
-        # RIGHT COLUMN: x = N_blades, one curve per rotor_radius
-        for r in unique_radii:
-            series = sorted(
-                [d for d in subset if d.rotor_radius == r],
-                key=lambda d: d.N_blades
-            )
-            if not series:
-                continue
-
-            x = np.array([d.N_blades for d in series], dtype=float)
-            color = radius_colors.get(r, "gray")
-
-            for row, (attr, _) in enumerate(metrics):
-                y = np.array([getattr(d, attr) for d in series], dtype=float)
-                ax[row, 1].plot(
-                    x, y,
-                    marker="o", linestyle="None", markersize=4,
-                    color=color
-                )
-
-        # Axis labels and grid
+        # Labels and styling
         for row, (_, ylabel) in enumerate(metrics):
-            ax[row, 0].set_ylabel(ylabel)
-            ax[row, 0].grid(True, alpha=0.3)
-            ax[row, 1].grid(True, alpha=0.3)
+            ax[row].set_ylabel(ylabel)
+            ax[row].grid(True, alpha=0.3)
 
-        ax[2, 0].set_xlabel("Rotor Radius [m]")
-        ax[2, 1].set_xlabel("Number of Blades")
-        ax[0, 0].set_title("vs Rotor Radius (color = # blades)")
-        ax[0, 1].set_title("vs Number of Blades (color = radius)")
+        ax[2].set_xlabel("Rotor Radius [m]")
 
-        if unique_radii:
-            ax[2, 0].set_xticks(np.linspace(min(unique_radii), max(unique_radii), min(10, len(unique_radii))))
-        ax[2, 1].set_xticks(sorted(set(N_blade_array)))
-
-        # Legends (left only)
-        blade_handles = [
+        # Legend (placed in upper left of first subplot)
+        handles = [
             mpatches.Patch(color=blade_colors[n], label=f"{n} blades")
             for n in N_blade_array
         ]
-
-        fig.legend(
-            handles=blade_handles,
+        ax[0].legend(
+            handles=handles,
             loc="upper left",
-            ncol=len(N_blade_array),
-            bbox_to_anchor=(0.08, 1.0),
+            ncol=2,
             frameon=True,
-            fontsize=10,
+            fontsize=10
         )
 
         plt.tight_layout()
+
         plt.savefig(
             filename.replace(".png", f"_{drone_name.replace(' ', '_')}.png"),
             dpi=150,
