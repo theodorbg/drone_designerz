@@ -61,12 +61,13 @@ do = {
     "Q2": True,
     "Q3": True,
     "Q4": True,
-    "Q5_MASTER_LOOP": True,
+    
+    "Q5_MASTER_LOOP": False,
     "Q5_analysis": True,
-    "Q5_twist_chord_dCt_dP": True,
+    "Q5_twist_chord_dCt_dP": False,
     "Q5_twist_chord_dCt_dP_comparison": True,
-    "Q6": True,
-    "Q6_2d_grid_search": True,   
+    "Q6": False,
+    "Q6_2d_grid_search": False,   
     }
 
 if do["Q1"]:
@@ -155,7 +156,7 @@ if do["Q2"]:
                     N_blades=N_blade,
                     N_rotors=2,
                     rpm=2800,
-                    N_batteries=6,
+                    N_batteries=12,
                     payload_mass=2.0,
                     aux_components_mass=1.0
                 )
@@ -168,7 +169,7 @@ if do["Q2"]:
                     N_blades=N_blade,
                     N_rotors=4,
                     rpm=2800,
-                    N_batteries=6,
+                    N_batteries=12,
                     payload_mass=2.0,
                     aux_components_mass=1.0
                 )
@@ -177,7 +178,15 @@ if do["Q2"]:
                 
                 for drone in drone_designs:
                     # solve for the total power and mass of the drone designs iteratively (since power depends on mass and mass depends on power)
+                    # manipulate battery storage:
+                    # battery weight: 500g
+                    # battery capacity: 20Wh
+                    # drone.reference.mass_per_battery = 500 / drone.N_batteries  # update mass per battery
+                    # drone.battery_capacity_per_battery = 20 / drone.N_batteries  # update capacity per battery
                     result = drone.solve_mass_power(P_initial, planet)
+                    print(drone.total_battery_capacity)
+                    # print(drone.battery_mass)
+                    # print(drone.battery_capacity_per_battery)
                     # result = drone.compute_planet_performance(planet)
 
                     if result is not None:
@@ -218,9 +227,9 @@ if do["Q2"]:
     chord_opt_q5 = np.array(C_MEAN, dtype=float) * np.ones(NO_BLADE_ELEMENTS)  # using the mean chord from the NASA data for the chord distribution in Q2 grid search
     n_iter = 100
     # N_blades_array = np.array([2, 3, 4, 5])
-    N_blades_array = np.array([2, 3])
-    min_radius = 0.15
-    max_radius = 0.8
+    N_blades_array = np.array([2, 3, 4, 5])
+    min_radius = 0.3
+    max_radius = 1.2
     diameter_array = np.linspace(min_radius*2, max_radius*2, n_iter)
                 
     dualCopter, quadCopter, converged_drone_designs = grid_search_q2(diameters=diameter_array, N_blades=N_blades_array, chord=chord_opt_q5, planet=mars, reference_drone=ingenuity)
